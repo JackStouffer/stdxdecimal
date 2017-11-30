@@ -1,0 +1,9 @@
+{
+	"name": "stdxdecimal",
+	"authors": [
+		"Jack Stouffer"
+	],
+	"description": "Proposal for a General Decimal Arithmetic type to Phobos",
+	"copyright": "Copyright © 2017, Jack Stouffer",
+	"license": "BSL 1.0"
+}

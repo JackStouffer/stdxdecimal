@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+stdxdecimal.so
+stdxdecimal.dylib
+stdxdecimal.dll
+stdxdecimal.a
+stdxdecimal.lib
+stdxdecimal-test-*
+*.exe
+*.a
+*.o
+*.obj
+*.lst
+*.sublime-*
