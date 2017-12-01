@@ -1,10 +1,8 @@
 /*
-    Adapted from the reference implementation of the General Decimal Arithmetic
-    specification from the international Components for Unicode under the 
-    permissive ICU License.
+    Adapted from the specification of the General Decimal Arithmetic.
 
     This implementation is rewritten for the D Programming Language and is
-    relicensed under the Boost Software License 1.0 and is written by Jack Stouffer
+    licensed under the Boost Software License 1.0 and is written by Jack Stouffer
 */
 
 module stdxdecimal;
