@@ -17,6 +17,9 @@ import std.bigint;
 import std.conv;
 
 /**
+ * Practically infinite above decimal place, limited to `long.min` number of
+ * decimal places
+ * 
  * Spec: http://speleotrove.com/decimal/decarith.html
  *
  * [sign, coefficient, exponent]
@@ -46,7 +49,6 @@ public:
      */
     this(string str)
     {
-
         import std.algorithm.comparison : among;
         import std.algorithm.searching : all, startsWith;
         import std.utf : byCodeUnit;
@@ -175,16 +177,19 @@ unittest
         Test("1.0", 0, 10, -1),
         Test("0E+7", 0, 0, 7),
         Test("-0E-7", 1, 0, 7),
+        Test("1.23E3", 1, 123, 1),
         Test("0001.0000", 0, 10000, -4),
         Test("-10.0004", 1, 100004, -4),
         Test("+15", 0, 15, 0),
         Test("-15", 1, 15, 0),
+        Test("1234.5E-4", 0, 12345, -5),
     ];
 
     auto specialTestValues = [
         SpecialTest("NaN", 0, true, false, false),
         SpecialTest("+nan", 0, true, false, false),
         SpecialTest("-nan", 1, true, false, false),
+        SpecialTest("-NAN", 1, true, false, false),
         SpecialTest("Infinite", 0, true, false, false),
         SpecialTest("inf", 0, false, false, true),
         SpecialTest("-inf", 1, false, false, true),
@@ -194,16 +199,17 @@ unittest
         SpecialTest("+", 0, true, false, false),
         SpecialTest("-", 0, true, false, false),
         SpecialTest("nan0123", 0, true, false, false),
+        SpecialTest("-nan0123", 1, true, false, false),
         SpecialTest("snan0123", 0, false, true, false),
     ];
 
-    //foreach (el; nonspecialTestValues)
-    //{
-    //    auto d = Decimal(el.val);
-    //    assert(d.coefficient == el.coefficient);
-    //    assert(d.sign == el.sign);
-    //    assert(d.exponent == el.exponent);
-    //}
+    foreach (el; nonspecialTestValues)
+    {
+        auto d = Decimal(el.val);
+        assert(d.coefficient == el.coefficient);
+        assert(d.sign == el.sign);
+        assert(d.exponent == el.exponent);
+    }
 
     foreach (el; specialTestValues)
     {
