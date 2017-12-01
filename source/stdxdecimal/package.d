@@ -54,7 +54,6 @@ public:
         import std.algorithm.iteration : map, filter;
         import std.ascii : toLower, isDigit;
         import std.utf : byChar;
-        import std.array : array;
 
         static bool asciiCmp(S1)(S1 a, string b)
         {
@@ -209,32 +208,36 @@ public:
             return;
     }
 
-    bool opEquals(T)(T f) if (isFloatingPoint!T)
+    bool opEquals(T)(T f) if (isNumeric!T)
     {
         return false;
     }
 
-    //bool opEquals(T)(T d) if (is(T : Decimal))
-    //{
-    //    if ((isInfinite == d.isInfinite && sign == d.sign))
-    //    {
-    //        return true;
-    //    }
-
-    //    return false;
-    //}
+    bool opEquals(T)(T d) if (is(T : Decimal))
+    {
+        return false;
+    }
 
     string toString()
     {
         // (–1)^^sign × coefficient × 10^^exponent
         import std.math : pow;
+        import std.range : repeat, chain;
+        import std.array : array;
+        import std.utf : byCodeUnit;
 
         BigInt signed = coefficient * (sign ? -1 : 1);
         auto temp = signed.toDecimalString();
         auto decimalPlace = exponent * -1;
+        
         if (decimalPlace > 0)
         {
             return temp[0 .. $ - decimalPlace] ~ "." ~ temp[$ - decimalPlace .. $];
+        }
+
+        if (decimalPlace < 0)
+        {
+            return temp.byCodeUnit.chain('0'.repeat(exponent)).array;
         }
 
         return temp;
@@ -271,6 +274,7 @@ unittest
         Test("+15", 0, 15, 0),
         Test("-15", 1, 15, 0),
         Test("1234.5E-4", 0, 12345, -5),
+        Test("30.5E10", 0, 305, 9) 
     ];
 
     auto specialTestValues = [
@@ -349,4 +353,10 @@ unittest
     t3.coefficient = 9_888_555_555;
     t3.exponent = -4;
     assert(t3.toString() == "988855.5555");
+
+    auto t4 = Decimal("300088.44000");
+    assert(t4.toString() == "300088.44000");
+
+    auto t5 = Decimal("30.5E10");
+    assert(t5.toString() == "305000000000");
 }
