@@ -37,11 +37,36 @@ package:
     bool isInfinite;
 
 public:
+    /**
+     * Note: Float construction less accurate that string, Use
+     * string construction if possible
+     */
     this(T)(T val) if (isNumeric!T)
     {
         static if (isIntegral!T)
         {
-            
+            import std.math : abs;
+
+            coefficient = abs(val);
+            sign = val >= 0 ? 0 : 1;
+        }
+        else
+        {
+            import std.math : isInfinity, isNaN;
+
+            if (isInfinity(val))
+            {
+                isInfinite = true;
+                sign = val < 0 ? 0 : 1;
+                return;
+            }
+
+            if (isNaN(val))
+            {
+                qNaN = true;
+                sign = val == T.nan ? 0 : 1;
+                return;
+            }
         }
     }
 
@@ -300,7 +325,7 @@ unittest
 
     foreach (el; nonspecialTestValues)
     {
-        writeln(el.val);
+        //writeln(el.val);
         auto d = Decimal(el.val);
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
@@ -309,11 +334,50 @@ unittest
 
     foreach (el; specialTestValues)
     {
-        writeln(el.val);
+        //writeln(el.val);
         auto d = Decimal(el.val);
         assert(d.qNaN == el.qNaN);
         assert(d.sNaN == el.sNaN);
         assert(d.isInfinite == el.isInfinite);
+    }
+}
+
+// int construction
+unittest
+{
+    static struct Test
+    {
+        long val;
+        ubyte sign;
+        long coefficient;
+    }
+
+    auto testValues = [
+        Test(10, 0, 10),
+        Test(-10, 1, 10),
+        Test(-1000000, 1, 1000000),
+        Test(long.max, 0, long.max),
+        Test(long.min, 1, long.min),
+    ];
+
+    foreach (el; testValues)
+    {
+        //writeln(el.val);
+        auto d = Decimal(el.val);
+        assert(d.coefficient == el.coefficient);
+        assert(d.sign == el.sign);
+    }
+}
+
+// float construction
+unittest
+{
+    static struct Test
+    {
+        double val;
+        ubyte sign;
+        int coefficient;
+        long exponent;
     }
 }
 
@@ -359,4 +423,10 @@ unittest
 
     auto t5 = Decimal("30.5E10");
     assert(t5.toString() == "305000000000");
+
+    auto t6 = Decimal(10);
+    assert(t6.toString() == "10");
+
+    auto t7 = Decimal(12345678);
+    assert(t7.toString() == "12345678");
 }
