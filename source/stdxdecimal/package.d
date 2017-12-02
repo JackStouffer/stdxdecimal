@@ -39,7 +39,10 @@ package:
 public:
     this(T)(T val) if (isNumeric!T)
     {
-
+        static if (isIntegral!T)
+        {
+            
+        }
     }
 
     /**
@@ -47,13 +50,11 @@ public:
      */
     this(string str)
     {
-        import std.algorithm.comparison : among;
-        import std.algorithm.searching : all, startsWith;
-        import std.utf : byCodeUnit;
-        import std.algorithm.comparison : equal;
-        import std.algorithm.iteration : map, filter;
-        import std.ascii : toLower, isDigit;
-        import std.utf : byChar;
+        import std.algorithm.comparison : among, equal;
+        import std.algorithm.iteration : filter, map;
+        import std.algorithm.searching : startsWith;
+        import std.ascii : isDigit, toLower;
+        import std.utf : byChar, byCodeUnit;
 
         static bool asciiCmp(S1)(S1 a, string b)
         {
@@ -118,10 +119,9 @@ public:
         bool sawExponentSign = false;
         byte exponentSign;
         long sciExponent = 0;
-        auto saved = codeUnits.save;
-        for (; !saved.empty; saved.popFront)
+        for (; !codeUnits.empty; codeUnits.popFront)
         {
-            auto digit = saved.front;
+            auto digit = codeUnits.front;
 
             if (!charCheck(digit))
                 goto Lerr;
@@ -139,16 +139,16 @@ public:
 
                 if (sawExponent)
                 {
-                    while (!saved.empty)
+                    while (!codeUnits.empty)
                     {
-                        if (!isDigit(saved.front))
+                        if (!isDigit(codeUnits.front))
                             goto Lerr;
 
-                        sciExponent += cast(uint) (saved.front - '0');
-                        if (!saved.empty)
+                        sciExponent += cast(uint) (codeUnits.front - '0');
+                        if (!codeUnits.empty)
                         {
-                            saved.popFront;
-                            if (!saved.empty)
+                            codeUnits.popFront;
+                            if (!codeUnits.empty)
                                 sciExponent *= 10;
                         }
                     }
@@ -158,7 +158,7 @@ public:
 
                     exponent += sciExponent;
 
-                    if (saved.empty)
+                    if (codeUnits.empty)
                         return;
                 }
             }
