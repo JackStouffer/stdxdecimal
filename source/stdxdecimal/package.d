@@ -28,13 +28,14 @@ package:
     // 1 indicates that the number is negative or is the negative zero
     // and 0 indicates that the number is zero or positive.
     ubyte sign;
+    // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
     BigInt coefficient;
     long exponent;
     // quiet NaN
     bool qNaN;
     // signaling NaN
     bool sNaN;
-    bool isInfinite;
+    bool inf;
 
 public:
     /**
@@ -60,7 +61,7 @@ public:
 
             if (isInfinity(val))
             {
-                isInfinite = true;
+                inf = true;
                 sign = val < 0 ? 0 : 1;
                 return;
             }
@@ -92,7 +93,7 @@ public:
     /**
      * implements spec to-number
      */
-    this(string str)
+    this(S)(S str) if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S)
     {
         import std.algorithm.comparison : among, equal;
         import std.algorithm.iteration : filter, map;
@@ -106,12 +107,15 @@ public:
         }
 
         // valid characters in non-special number strings
-        static bool charCheck(char a)
+        static bool charCheck(dchar a)
         {
             return isDigit(a) || a == 'E' || a == 'e' || a == '-' || a == '+' || a == '.';
         }
 
-        auto codeUnits = str.byCodeUnit;
+        static if (isSomeString!S)
+            auto codeUnits = str.byCodeUnit;
+        else
+            alias codeUnits = str;
 
         if (codeUnits.empty)
         {
@@ -140,7 +144,7 @@ public:
         if (codeUnits.among!((a, b) => asciiCmp(a.save, b))
                ("inf", "infinity"))
         {
-            isInfinite = true;
+            inf = true;
             return;
         }
 
@@ -264,7 +268,6 @@ public:
 
     string toString()
     {
-        // (–1)^^sign × coefficient × 10^^exponent
         import std.math : pow;
         import std.range : repeat, chain;
         import std.array : array;
@@ -308,7 +311,7 @@ unittest
         ubyte sign;
         bool qNaN;
         bool sNaN;
-        bool isInfinite;
+        bool inf;
     }
 
     auto nonspecialTestValues = [
@@ -360,8 +363,26 @@ unittest
         auto d = Decimal(el.val);
         assert(d.qNaN == el.qNaN);
         assert(d.sNaN == el.sNaN);
-        assert(d.isInfinite == el.isInfinite);
+        assert(d.inf == el.inf);
     }
+}
+
+// range construction
+unittest
+{
+    import std.internal.test.dummyrange;
+    import std.utf;
+    auto r1 = new ReferenceForwardRange!dchar("123.456");
+    auto d1 = Decimal(r1);
+    assert(d1.coefficient == 123456);
+    assert(d1.sign == 0);
+    assert(d1.exponent == -3);
+
+    auto r2 = new ReferenceForwardRange!dchar("-0.00004");
+    auto d2 = Decimal(r2);
+    assert(d2.coefficient == 4);
+    assert(d2.sign == 1);
+    assert(d2.exponent == -5);
 }
 
 // int construction
@@ -408,7 +429,7 @@ unittest
         ubyte sign;
         bool qNaN;
         bool sNaN;
-        bool isInfinite;
+        bool inf;
     }
 
     auto nonspecialTestValues = [
@@ -441,7 +462,7 @@ unittest
         auto d = Decimal(el.val);
         assert(d.qNaN == el.qNaN);
         assert(d.sNaN == el.sNaN);
-        assert(d.isInfinite == el.isInfinite);
+        assert(d.inf == el.inf);
     }
 }
 
