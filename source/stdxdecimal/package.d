@@ -43,6 +43,10 @@ public:
      */
     this(T)(T val) if (isNumeric!T)
     {
+        // the behavior of conversion from built-in number types
+        // isn't covered by the spec, so we can do what ever we
+        // want here
+
         static if (isIntegral!T)
         {
             import std.math : abs;
@@ -52,7 +56,7 @@ public:
         }
         else
         {
-            import std.math : isInfinity, isNaN;
+            import std.math : abs, isInfinity, isNaN;
 
             if (isInfinity(val))
             {
@@ -67,6 +71,21 @@ public:
                 sign = val == T.nan ? 0 : 1;
                 return;
             }
+
+            sign = val >= 0 ? 0 : 1;
+            val = abs(val);
+
+            // while the number still has a fractional part, multiply by 10,
+            // counting each time until no fractional part
+            T fraction = val - (cast(long) val);
+            while (fraction > 0)
+            {
+                exponent--;
+                val *= 10;
+                fraction = val - (cast(long) val);
+            }
+
+            coefficient = cast(size_t) val;
         }
     }
 
@@ -257,6 +276,9 @@ public:
         
         if (decimalPlace > 0)
         {
+            if (temp.length - decimalPlace == 0)
+                return "0." ~ temp;
+
             return temp[0 .. $ - decimalPlace] ~ "." ~ temp[$ - decimalPlace .. $];
         }
 
@@ -379,6 +401,48 @@ unittest
         int coefficient;
         long exponent;
     }
+
+    static struct SpecialTest
+    {
+        double val;
+        ubyte sign;
+        bool qNaN;
+        bool sNaN;
+        bool isInfinite;
+    }
+
+    auto nonspecialTestValues = [
+        Test(0.02, 0, 2, -2),
+        Test(0.00002, 0, 2, -5),
+        Test(1.02, 0, 102, -2),
+        Test(200.0, 0, 200, 0),
+        Test(1234.5678, 0, 12345678, -4),
+        Test(-1234.5678, 1, 12345678, -4),
+        Test(-1234, 1, 1234, 0),
+    ];
+
+    auto specialTestValues = [
+        SpecialTest(float.nan, 0, true, false, false),
+        SpecialTest(-float.nan, 1, true, false, false),
+        SpecialTest(float.infinity, 0, false, false, true),
+        SpecialTest(-float.infinity, 1, false, false, true),
+    ];
+
+    foreach (el; nonspecialTestValues)
+    {
+        auto d = Decimal(el.val);
+        assert(d.coefficient == el.coefficient);
+        assert(d.sign == el.sign);
+        assert(d.exponent == el.exponent);
+    }
+
+    foreach (el; specialTestValues)
+    {
+        auto d = Decimal(el.val);
+        assert(d.qNaN == el.qNaN);
+        assert(d.sNaN == el.sNaN);
+        assert(d.isInfinite == el.isInfinite);
+    }
 }
 
 // equals float
@@ -429,4 +493,13 @@ unittest
 
     auto t7 = Decimal(12345678);
     assert(t7.toString() == "12345678");
+
+    auto t8 = Decimal(1234.5678);
+    assert(t8.toString() == "1234.5678");
+
+    auto t9 = Decimal(0.1234);
+    assert(t9.toString() == "0.1234");
+
+    auto t10 = Decimal(1234.0);
+    assert(t10.toString() == "1234");
 }
