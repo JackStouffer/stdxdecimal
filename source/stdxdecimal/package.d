@@ -22,20 +22,20 @@ import std.conv;
  *
  * [sign, coefficient, exponent]
  */
-struct Decimal
+struct Decimal(ulong precision = 9)
 {
 package:
     // 1 indicates that the number is negative or is the negative zero
     // and 0 indicates that the number is zero or positive.
-    ubyte sign;
-    // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
-    BigInt coefficient;
-    long exponent;
+    bool sign;
     // quiet NaN
     bool qNaN;
     // signaling NaN
     bool sNaN;
     bool inf;
+    // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
+    ulong coefficient;
+    long exponent;
 
 public:
     /**
@@ -273,8 +273,10 @@ public:
         import std.array : array;
         import std.utf : byCodeUnit;
 
-        BigInt signed = coefficient * (sign ? -1 : 1);
-        auto temp = signed.toDecimalString();
+        auto temp = coefficient.to!string;
+        if (sign == 1)
+            temp = "-" ~ temp;
+
         auto decimalPlace = exponent * -1;
         
         if (decimalPlace > 0)
@@ -351,7 +353,7 @@ unittest
     foreach (el; nonspecialTestValues)
     {
         //writeln(el.val);
-        auto d = Decimal(el.val);
+        auto d = Decimal!()(el.val);
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
         assert(d.exponent == el.exponent);
@@ -360,7 +362,7 @@ unittest
     foreach (el; specialTestValues)
     {
         //writeln(el.val);
-        auto d = Decimal(el.val);
+        auto d = Decimal!()(el.val);
         assert(d.qNaN == el.qNaN);
         assert(d.sNaN == el.sNaN);
         assert(d.inf == el.inf);
@@ -373,13 +375,13 @@ unittest
     import std.internal.test.dummyrange;
     import std.utf;
     auto r1 = new ReferenceForwardRange!dchar("123.456");
-    auto d1 = Decimal(r1);
+    auto d1 = Decimal!()(r1);
     assert(d1.coefficient == 123456);
     assert(d1.sign == 0);
     assert(d1.exponent == -3);
 
     auto r2 = new ReferenceForwardRange!dchar("-0.00004");
-    auto d2 = Decimal(r2);
+    auto d2 = Decimal!()(r2);
     assert(d2.coefficient == 4);
     assert(d2.sign == 1);
     assert(d2.exponent == -5);
@@ -406,7 +408,7 @@ unittest
     foreach (el; testValues)
     {
         //writeln(el.val);
-        auto d = Decimal(el.val);
+        auto d = Decimal!()(el.val);
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
     }
@@ -451,7 +453,7 @@ unittest
 
     foreach (el; nonspecialTestValues)
     {
-        auto d = Decimal(el.val);
+        auto d = Decimal!()(el.val);
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
         assert(d.exponent == el.exponent);
@@ -459,7 +461,7 @@ unittest
 
     foreach (el; specialTestValues)
     {
-        auto d = Decimal(el.val);
+        auto d = Decimal!()(el.val);
         assert(d.qNaN == el.qNaN);
         assert(d.sNaN == el.sNaN);
         assert(d.inf == el.inf);
@@ -485,42 +487,53 @@ unittest
 // to string
 unittest
 {
-    auto t = Decimal();
+    auto t = Decimal!()();
     t.sign = 0;
     t.coefficient = 2708;
     t.exponent = -2;
     assert(t.toString() == "27.08");
 
-    auto t2 = Decimal();
+    auto t2 = Decimal!()();
     t2.sign = 1;
     t2.coefficient = 1953;
     t2.exponent = 0;
     assert(t2.toString() == "-1953");
 
-    auto t3 = Decimal();
+    auto t3 = Decimal!()();
     t3.sign = 0;
     t3.coefficient = 9_888_555_555;
     t3.exponent = -4;
     assert(t3.toString() == "988855.5555");
 
-    auto t4 = Decimal("300088.44000");
+    auto t4 = Decimal!()("300088.44000");
     assert(t4.toString() == "300088.44000");
 
-    auto t5 = Decimal("30.5E10");
+    auto t5 = Decimal!()("30.5E10");
     assert(t5.toString() == "305000000000");
 
-    auto t6 = Decimal(10);
+    auto t6 = Decimal!()(10);
     assert(t6.toString() == "10");
 
-    auto t7 = Decimal(12345678);
+    auto t7 = Decimal!()(12345678);
     assert(t7.toString() == "12345678");
 
-    auto t8 = Decimal(1234.5678);
+    auto t8 = Decimal!()(1234.5678);
     assert(t8.toString() == "1234.5678");
 
-    auto t9 = Decimal(0.1234);
+    auto t9 = Decimal!()(0.1234);
     assert(t9.toString() == "0.1234");
 
-    auto t10 = Decimal(1234.0);
+    auto t10 = Decimal!()(1234.0);
     assert(t10.toString() == "1234");
+}
+
+/**
+ * Factory function
+ */
+auto decimal(R, ulong precision = 9)(R r)
+if ((isForwardRange!R &&
+    isSomeChar!(ElementEncodingType!R) &&
+    !isInfinite!R) || isNumeric!R)
+{
+    return Decimal!(precision)(r);
 }
