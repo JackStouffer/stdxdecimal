@@ -77,8 +77,10 @@ enum Rounding
  *
  * [sign, coefficient, exponent]
  */
-struct Decimal(ulong precision = 9, Rounding mode = Rounding.HalfUp)
+struct Decimal(ulong precision = 9, Rounding mode = Rounding.HalfUp, Hook = DefaultHook)
 {
+    import std.experimental.allocator.common : stateSize;
+
 package:
     // 1 indicates that the number is negative or is the negative zero
     // and 0 indicates that the number is zero or positive.
@@ -88,6 +90,7 @@ package:
     // signaling NaN
     bool sNaN;
     bool inf;
+
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
     // TODO, given high enough precision, or some other argument, this should
     // automatically become a BigInt
@@ -96,13 +99,39 @@ package:
 
 public:
     /**
+     * `hook` is a member variable if it has state, or an alias for `Hook`
+     * otherwise.
+     */
+    static if (stateSize!Hook > 0)
+        Hook hook;
+    else
+        alias hook = Hook;
+
+    /// Public flags
+    bool clamped;
+    /// ditto
+    bool divisionByZero;
+    /// ditto
+    bool inexact;
+    /// ditto
+    bool invalidOperation;
+    /// ditto
+    bool overflow;
+    /// ditto
+    bool rounded;
+    /// ditto
+    bool subnormal;
+    /// ditto
+    bool underflow;
+
+    /**
      * Note: Float construction less accurate that string, Use
      * string construction if possible
      */
     this(T)(T val) if (isNumeric!T)
     {
         // the behavior of conversion from built-in number types
-        // isn't covered by the spec, so we can do what ever we
+        // isn't covered by the spec, so we can do whatever we
         // want here
 
         static if (isIntegral!T)
@@ -587,12 +616,12 @@ unittest
 /**
  * Factory function
  */
-auto decimal(R, ulong precision = 9, Rounding mode = Rounding.HalfUp)(R r)
+auto decimal(R, ulong precision = 9, Rounding mode = Rounding.HalfUp, Hook = DefaultHook)(R r)
 if ((isForwardRange!R &&
     isSomeChar!(ElementEncodingType!R) &&
     !isInfinite!R) || isNumeric!R)
 {
-    return Decimal!(precision, mode)(r);
+    return Decimal!(precision, mode, Hook)(r);
 }
 
 unittest
@@ -600,4 +629,37 @@ unittest
     auto d1 = decimal(5.5);
     assert(d1.toString == "5.5");
     //assert(d1 == 5.5);
+}
+
+/**
+ * spec "Basic default context"
+ *
+ * Will halt program on division by zero, invalid operations,
+ * overflows, and underflows
+ */
+struct DefaultHook
+{
+    ///
+    static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Division by zero");
+    }
+
+    ///
+    static void onInvalidOperation(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Invalid operation");
+    }
+
+    ///
+    static void onOverflow(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Overflow");
+    }
+
+    ///
+    static void onUnderflow(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Underflow");
+    }
 }
