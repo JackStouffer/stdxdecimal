@@ -77,7 +77,7 @@ enum Rounding
  *
  * [sign, coefficient, exponent]
  */
-struct Decimal(ulong precision = 9, Rounding mode = Rounding.HalfUp, Hook = DefaultHook)
+struct Decimal(Hook = DefaultHook)
 {
     import std.experimental.allocator.common : stateSize;
 
@@ -352,6 +352,8 @@ public:
         return false;
     }
 
+    // TODO: rename to toSimpleString a-la std.datetime, and rewrite to use
+    // writer object, define toString as toSimpleString using Appender internally
     string toString()
     {
         import std.math : pow;
@@ -616,12 +618,12 @@ unittest
 /**
  * Factory function
  */
-auto decimal(R, ulong precision = 9, Rounding mode = Rounding.HalfUp, Hook = DefaultHook)(R r)
+auto decimal(R, Hook = DefaultHook)(R r)
 if ((isForwardRange!R &&
     isSomeChar!(ElementEncodingType!R) &&
     !isInfinite!R) || isNumeric!R)
 {
-    return Decimal!(precision, mode, Hook)(r);
+    return Decimal!(Hook)(r);
 }
 
 unittest
@@ -639,6 +641,11 @@ unittest
  */
 struct DefaultHook
 {
+    ///
+    immutable Rounding roundingMode = Rounding.HalfUp;
+    ///
+    enum precision = 9;
+
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
     {
