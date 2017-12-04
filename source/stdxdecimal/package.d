@@ -1,28 +1,83 @@
 /*
     Adapted from the specification of the General Decimal Arithmetic.
 
-    This implementation is rewritten for the D Programming Language and is
-    licensed under the Boost Software License 1.0 and is written by Jack Stouffer
+    This implementation is written for the D Programming Language
+    by Jack Stouffer and is licensed under the Boost Software License 1.0.
 */
-
 module stdxdecimal;
 
 import std.stdio;
 import std.range.primitives;
-import core.stdc.stdlib;
 import std.traits;
-import std.bigint;
 import std.conv;
 
 /**
- * Practically infinite above decimal place, limited to `long.min` number of
+ * Rounding mode
+ */
+enum Rounding
+{
+    /**
+     * (Round toward 0; truncate.) The discarded digits are ignored; the result is unchanged.
+     */
+    Down,
+    /**
+     * If the discarded digits represent greater than or equal to half (0.5)
+     * of the value of a one in the next left position then the result coefficient
+     * should be incremented by 1 (rounded up). Otherwise the discarded digits are ignored.
+     */
+    HalfUp,
+    /**
+     * If the discarded digits represent greater than half (0.5) the value of a
+     * one in the next left position then the result coefficient should be
+     * incremented by 1 (rounded up). If they represent less than half, then the
+     * result coefficient is not adjusted (that is, the discarded digits are ignored).
+     *
+     * Otherwise (they represent exactly half) the result coefficient is unaltered
+     * if its rightmost digit is even, or incremented by 1 (rounded up) if its
+     * rightmost digit is odd (to make an even digit).
+     */
+    HalfEven,
+    /**
+     * If all of the discarded digits are zero or if the sign is 1 the result is
+     * unchanged. Otherwise, the result coefficient should be incremented by 1
+     * (rounded up).
+     */
+    Ceiling,
+    /**
+     * If all of the discarded digits are zero or if the sign is 0 the result is
+     * unchanged. Otherwise, the sign is 1 and the result coefficient should be
+     * incremented by 1.
+     */
+    Floor,
+    /**
+     * If the discarded digits represent greater than half (0.5) of the value of
+     * a one in the next left position then the result coefficient should be
+     * incremented by 1 (rounded up). Otherwise (the discarded digits are 0.5 or
+     * less) the discarded digits are ignored.
+     */
+    HalfDown,
+    /**
+     * (Round away from 0.) If all of the discarded digits are zero the result is
+     * unchanged. Otherwise, the result coefficient should be incremented by 1 (rounded up).
+     */
+    Up,
+    /**
+     * (Round zero or five away from 0.) The same as round-up, except that rounding
+     * up only occurs if the digit to be rounded up is 0 or 5, and after overflow
+     * the result is the same as for round-down.
+     */
+    ZeroFiveUp
+}
+
+/**
+ * Practically infinite above decimal place, limited to `abs(long.min)` number of
  * decimal places
  * 
  * Spec: http://speleotrove.com/decimal/decarith.html
  *
  * [sign, coefficient, exponent]
  */
-struct Decimal(ulong precision = 9)
+struct Decimal(ulong precision = 9, Rounding mode = Rounding.HalfUp)
 {
 package:
     // 1 indicates that the number is negative or is the negative zero
@@ -34,6 +89,8 @@ package:
     bool sNaN;
     bool inf;
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
+    // TODO, given high enough precision, or some other argument, this should
+    // automatically become a BigInt
     ulong coefficient;
     long exponent;
 
@@ -81,7 +138,7 @@ public:
             T fraction = val - (cast(long) val);
             while (fraction > 0)
             {
-                exponent--;
+                --exponent;
                 val *= 10;
                 fraction = val - (cast(long) val);
             }
@@ -149,14 +206,14 @@ public:
         }
 
         // having numbers after nan is valid in the spec
-        if (codeUnits.save.map!toLower.startsWith("qnan") ||
-            codeUnits.save.map!toLower.startsWith("nan"))
+        if (codeUnits.save.map!toLower.startsWith("qnan".byChar) ||
+            codeUnits.save.map!toLower.startsWith("nan".byChar))
         {
             qNaN = true;
             return;
         }
 
-        if (codeUnits.save.map!toLower.startsWith("snan"))
+        if (codeUnits.save.map!toLower.startsWith("snan".byChar))
         {
             sNaN = true;
             return;
@@ -297,7 +354,7 @@ public:
 }
 
 // string construction
-unittest
+@safe pure nothrow unittest
 {
     static struct Test
     {
@@ -530,10 +587,17 @@ unittest
 /**
  * Factory function
  */
-auto decimal(R, ulong precision = 9)(R r)
+auto decimal(R, ulong precision = 9, Rounding mode = Rounding.HalfUp)(R r)
 if ((isForwardRange!R &&
     isSomeChar!(ElementEncodingType!R) &&
     !isInfinite!R) || isNumeric!R)
 {
-    return Decimal!(precision)(r);
+    return Decimal!(precision, mode)(r);
+}
+
+unittest
+{
+    auto d1 = decimal(5.5);
+    assert(d1.toString == "5.5");
+    //assert(d1 == 5.5);
 }
