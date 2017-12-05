@@ -12,64 +12,6 @@ import std.traits;
 import std.conv;
 
 /**
- * Rounding mode
- */
-enum Rounding
-{
-    /**
-     * (Round toward 0; truncate.) The discarded digits are ignored; the result is unchanged.
-     */
-    Down,
-    /**
-     * If the discarded digits represent greater than or equal to half (0.5)
-     * of the value of a one in the next left position then the result coefficient
-     * should be incremented by 1 (rounded up). Otherwise the discarded digits are ignored.
-     */
-    HalfUp,
-    /**
-     * If the discarded digits represent greater than half (0.5) the value of a
-     * one in the next left position then the result coefficient should be
-     * incremented by 1 (rounded up). If they represent less than half, then the
-     * result coefficient is not adjusted (that is, the discarded digits are ignored).
-     *
-     * Otherwise (they represent exactly half) the result coefficient is unaltered
-     * if its rightmost digit is even, or incremented by 1 (rounded up) if its
-     * rightmost digit is odd (to make an even digit).
-     */
-    HalfEven,
-    /**
-     * If all of the discarded digits are zero or if the sign is 1 the result is
-     * unchanged. Otherwise, the result coefficient should be incremented by 1
-     * (rounded up).
-     */
-    Ceiling,
-    /**
-     * If all of the discarded digits are zero or if the sign is 0 the result is
-     * unchanged. Otherwise, the sign is 1 and the result coefficient should be
-     * incremented by 1.
-     */
-    Floor,
-    /**
-     * If the discarded digits represent greater than half (0.5) of the value of
-     * a one in the next left position then the result coefficient should be
-     * incremented by 1 (rounded up). Otherwise (the discarded digits are 0.5 or
-     * less) the discarded digits are ignored.
-     */
-    HalfDown,
-    /**
-     * (Round away from 0.) If all of the discarded digits are zero the result is
-     * unchanged. Otherwise, the result coefficient should be incremented by 1 (rounded up).
-     */
-    Up,
-    /**
-     * (Round zero or five away from 0.) The same as round-up, except that rounding
-     * up only occurs if the digit to be rounded up is 0 or 5, and after overflow
-     * the result is the same as for round-down.
-     */
-    ZeroFiveUp
-}
-
-/**
  * Practically infinite above decimal place, limited to `abs(long.min)` number of
  * decimal places
  * 
@@ -214,7 +156,7 @@ public:
         {
             codeUnits.popFront;
         }
-        if (frontResult == '-')
+        else if (frontResult == '-')
         {
             sign = 1;
             codeUnits.popFront;
@@ -342,11 +284,13 @@ public:
             return;
     }
 
+    ///
     bool opEquals(T)(T f) if (isNumeric!T)
     {
         return false;
     }
 
+    ///
     bool opEquals(T)(T d) if (is(T : Decimal))
     {
         return false;
@@ -354,6 +298,8 @@ public:
 
     // TODO: rename to toSimpleString a-la std.datetime, and rewrite to use
     // writer object, define toString as toSimpleString using Appender internally
+    
+    ///
     string toString()
     {
         import std.math : pow;
@@ -577,13 +523,13 @@ unittest
 {
     auto t = Decimal!()();
     t.sign = 0;
-    t.coefficient = 2708;
+    t.coefficient = 2_708;
     t.exponent = -2;
     assert(t.toString() == "27.08");
 
     auto t2 = Decimal!()();
     t2.sign = 1;
-    t2.coefficient = 1953;
+    t2.coefficient = 1_953;
     t2.exponent = 0;
     assert(t2.toString() == "-1953");
 
@@ -602,7 +548,7 @@ unittest
     auto t6 = Decimal!()(10);
     assert(t6.toString() == "10");
 
-    auto t7 = Decimal!()(12345678);
+    auto t7 = Decimal!()(12_345_678);
     assert(t7.toString() == "12345678");
 
     auto t8 = Decimal!()(1234.5678);
@@ -626,11 +572,71 @@ if ((isForwardRange!R &&
     return Decimal!(Hook)(r);
 }
 
+///
 unittest
 {
     auto d1 = decimal(5.5);
     assert(d1.toString == "5.5");
-    //assert(d1 == 5.5);
+
+    auto d2 = decimal("500.555");
+}
+
+/**
+ * Rounding mode
+ */
+enum Rounding
+{
+    /**
+     * (Round toward 0; truncate.) The discarded digits are ignored; the result is unchanged.
+     */
+    Down,
+    /**
+     * If the discarded digits represent greater than or equal to half (0.5)
+     * of the value of a one in the next left position then the result coefficient
+     * should be incremented by 1 (rounded up). Otherwise the discarded digits are ignored.
+     */
+    HalfUp,
+    /**
+     * If the discarded digits represent greater than half (0.5) the value of a
+     * one in the next left position then the result coefficient should be
+     * incremented by 1 (rounded up). If they represent less than half, then the
+     * result coefficient is not adjusted (that is, the discarded digits are ignored).
+     *
+     * Otherwise (they represent exactly half) the result coefficient is unaltered
+     * if its rightmost digit is even, or incremented by 1 (rounded up) if its
+     * rightmost digit is odd (to make an even digit).
+     */
+    HalfEven,
+    /**
+     * If all of the discarded digits are zero or if the sign is 1 the result is
+     * unchanged. Otherwise, the result coefficient should be incremented by 1
+     * (rounded up).
+     */
+    Ceiling,
+    /**
+     * If all of the discarded digits are zero or if the sign is 0 the result is
+     * unchanged. Otherwise, the sign is 1 and the result coefficient should be
+     * incremented by 1.
+     */
+    Floor,
+    /**
+     * If the discarded digits represent greater than half (0.5) of the value of
+     * a one in the next left position then the result coefficient should be
+     * incremented by 1 (rounded up). Otherwise (the discarded digits are 0.5 or
+     * less) the discarded digits are ignored.
+     */
+    HalfDown,
+    /**
+     * (Round away from 0.) If all of the discarded digits are zero the result is
+     * unchanged. Otherwise, the result coefficient should be incremented by 1 (rounded up).
+     */
+    Up,
+    /**
+     * (Round zero or five away from 0.) The same as round-up, except that rounding
+     * up only occurs if the digit to be rounded up is 0 or 5, and after overflow
+     * the result is the same as for round-down.
+     */
+    ZeroFiveUp
 }
 
 /**
@@ -642,9 +648,9 @@ unittest
 struct DefaultHook
 {
     ///
-    immutable Rounding roundingMode = Rounding.HalfUp;
+    enum Rounding roundingMode = Rounding.HalfUp;
     ///
-    enum precision = 9;
+    enum uint precision = 9;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
