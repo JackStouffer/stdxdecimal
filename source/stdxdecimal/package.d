@@ -23,6 +23,15 @@ struct Decimal(Hook = DefaultHook)
 {
     import std.experimental.allocator.common : stateSize;
 
+    static assert(
+        hasMember!(Hook, "precision") && is(typeof(Hook.precision) : uint),
+        "The Hook must have a defined precision"
+    );
+    static assert(
+        hasMember!(Hook, "roundingMode") && is(typeof(Hook.roundingMode) == Rounding),
+        "The Hook must have a defined Rounding"
+    );
+
 package:
     // 1 indicates that the number is negative or is the negative zero
     // and 0 indicates that the number is zero or positive.
@@ -38,6 +47,74 @@ package:
     // automatically become a BigInt
     ulong coefficient;
     long exponent;
+
+    enum hasClampedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onClamped(d); });
+    enum hasRoundedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onRounded(d); });
+    enum hasInexactMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onInexact(d); });
+    enum hasDivisionByZeroMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onDivisionByZero(d); });
+    enum hasInvalidOperationMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onInvalidOperation(d); });
+    enum hasOverflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onOverflow(d); });
+    enum hasSubnormalMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onSubnormal(d); });
+    enum hasUnderflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onUnderflow(d); });
+
+    /*
+        rounds the coefficient via `Hook`s rounding mode. Also sets the proper
+        flags and calls the proper `Hook` defined methods
+     */
+    auto round()
+    {
+        auto digits = numberOfDigits(coefficient);
+
+        if (digits <= hook.precision)
+            return;
+
+        static if (hook.roundingMode == Rounding.Down)
+        {
+            while (digits > hook.precision)
+            {
+                coefficient /= 10;
+                --digits;
+            }
+        }
+        else static if (hook.roundingMode == Rounding.Up)
+        {
+            while (digits > hook.precision)
+            {
+                coefficient /= 10;
+                --digits;
+            }
+
+            ++coefficient;
+        }
+        else static if (hook.roundingMode == Rounding.HalfUp)
+        {
+            while (digits > hook.precision + 1)
+            {
+                coefficient /= 10;
+                --digits;
+            }
+
+            auto lastDigit = coefficient % 10;
+
+            coefficient /= 10;
+            if (lastDigit >= 5)
+                ++coefficient;
+        }
+        else
+        {
+            static assert(0, "Not implemented");
+        }
+
+        inexact = true;
+        rounded = true;
+
+        static if (hasRoundedMethod)
+            hook.onRounded(this);
+        static if (hasInexactMethod)
+            hook.onInexact(this);
+
+        return;
+    }
 
 public:
     /**
@@ -561,6 +638,112 @@ unittest
     assert(t10.toString() == "1234");
 }
 
+// test rounding
+// @safe pure nothrow
+unittest
+{
+    import std.exception : assertThrown;
+
+    static struct Test
+    {
+        ulong coefficient;
+        ulong expected;
+        bool inexact;
+        bool rounded;
+    }
+
+    static struct DownHook
+    {
+        enum uint precision = 5;
+        enum Rounding roundingMode = Rounding.Down;
+    }
+
+    static struct UpHook
+    {
+        enum uint precision = 5;
+        enum Rounding roundingMode = Rounding.Up;
+    }
+
+    static struct HalfUpHook
+    {
+        enum uint precision = 5;
+        enum Rounding roundingMode = Rounding.HalfUp;
+    }
+
+    auto downValues = [
+        Test(12345, 12345, false, false),
+        Test(123449, 12344, true, true),
+        Test(1234499999, 12344, true, true),
+        Test(123451, 12345, true, true),
+        Test(123450000001, 12345, true, true),
+        Test(1234649999, 12346, true, true),
+        Test(123465, 12346, true, true),
+        Test(1234650001, 12346, true, true)
+    ];
+    auto upValues = [
+        Test(12345, 12345, false, false),
+        Test(1234499, 12345, true, true),
+        Test(123449999999, 12345, true, true),
+        Test(123450000001, 12346, true, true),
+        Test(123451, 12346, true, true),
+        Test(1234649999, 12347, true, true),
+        Test(123465, 12347, true, true),
+        Test(123454, 12346, true, true)
+    ];
+    auto halfUpValues = [
+        Test(12345, 12345, false, false),
+        Test(123449, 12345, true, true),
+        Test(1234499, 12345, true, true),
+        Test(12344999, 12345, true, true),
+        Test(123451, 12345, true, true),
+        Test(1234501, 12345, true, true),
+        Test(123464999, 12346, true, true),
+        Test(123465, 12347, true, true),
+        Test(1234650001, 12347, true, true),
+        Test(123456, 12346, true, true)
+    ];
+
+    foreach (e; downValues)
+    {
+        auto d = Decimal!(DownHook)(e.coefficient);
+        d.round();
+        assert(d.coefficient == e.expected);
+        assert(d.rounded == e.rounded);
+        assert(d.inexact == e.inexact);
+    }
+    foreach (e; upValues)
+    {
+        auto d = Decimal!(UpHook)(e.coefficient);
+        d.round();
+        assert(d.coefficient == e.expected);
+        assert(d.rounded == e.rounded);
+        assert(d.inexact == e.inexact);
+    }
+    foreach (e; halfUpValues)
+    {
+        auto d = Decimal!(HalfUpHook)(e.coefficient);
+        d.round();
+        assert(d.coefficient == e.expected);
+        assert(d.rounded == e.rounded);
+        assert(d.inexact == e.inexact);
+    }
+
+    // test calling of defined hook methods
+    static struct ThrowHook
+    {
+        enum uint precision = 5;
+        enum Rounding roundingMode = Rounding.HalfUp;
+
+        static void onRounded(T)(T d)
+        {
+            throw new Exception("Rounded");
+        }
+    }
+
+    auto d = Decimal!(ThrowHook)(1_234_567);
+    assertThrown(d.round());
+}
+
 /**
  * Factory function
  */
@@ -675,4 +858,32 @@ struct DefaultHook
     {
         assert(0, "Underflow");
     }
+}
+
+/*
+ * Get the number of digits in the decimal representation of a number
+ */
+private auto numberOfDigits(T)(T x) if (isIntegral!T)
+{
+    import std.algorithm.comparison : max;
+    import std.math : floor, log10;
+
+    static if (is(Signed!T == T))
+    {
+        import std.math : abs;
+        x = abs(x);
+    }
+
+    return (cast(uint) x.log10.floor.max(0)) + 1;
+}
+
+@safe @nogc pure nothrow unittest
+{
+    assert(numberOfDigits(0) == 1);
+    assert(numberOfDigits(1) == 1);
+    assert(numberOfDigits(1_000UL) == 4);
+    assert(numberOfDigits(-1_000L) == 4);
+    assert(numberOfDigits(1_000_000) == 7);
+    assert(numberOfDigits(-1_000_000) == 7);
+    assert(numberOfDigits(123_456) == 6);
 }
