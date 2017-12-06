@@ -31,6 +31,10 @@ struct Decimal(Hook = Abort)
         hasMember!(Hook, "roundingMode") && is(typeof(Hook.roundingMode) == Rounding),
         "The Hook must have a defined Rounding"
     );
+    static assert(
+        hook.precision > 1,
+        "Hook precision is too small"
+    );
 
 package:
     // 1 indicates that the number is negative or is the negative zero
@@ -74,6 +78,7 @@ package:
             {
                 coefficient /= 10;
                 --digits;
+                ++exponent;
             }
         }
         else static if (hook.roundingMode == Rounding.Up)
@@ -82,6 +87,7 @@ package:
             {
                 coefficient /= 10;
                 --digits;
+                ++exponent;
             }
 
             ++coefficient;
@@ -92,11 +98,14 @@ package:
             {
                 coefficient /= 10;
                 --digits;
+                ++exponent;
             }
 
             auto lastDigit = coefficient % 10;
 
             coefficient /= 10;
+            ++exponent;
+
             if (lastDigit >= 5)
                 ++coefficient;
         }
@@ -108,10 +117,11 @@ package:
         inexact = true;
         rounded = true;
 
-        static if (hasRoundedMethod)
-            hook.onRounded(this);
+        // "any Inexact trap takes precedence over Rounded"
         static if (hasInexactMethod)
             hook.onInexact(this);
+        static if (hasRoundedMethod)
+            hook.onRounded(this);
 
         return;
     }
@@ -193,6 +203,8 @@ public:
 
             coefficient = cast(size_t) val;
         }
+
+        round();
     }
 
     /**
@@ -228,7 +240,14 @@ public:
             return;
         }
 
+        // all variables are declared here to make gotos compile
         immutable frontResult = codeUnits.front;
+        bool sawDecimal = false;
+        bool sawExponent = false;
+        bool sawExponentSign = false;
+        byte exponentSign;
+        long sciExponent = 0;
+
         if (frontResult == '+')
         {
             codeUnits.popFront;
@@ -242,8 +261,7 @@ public:
         if (codeUnits.empty)
         {
             sign = 0;
-            qNaN = true;
-            return;
+            goto Lerr;
         }
 
         if (codeUnits.among!((a, b) => asciiCmp(a.save, b))
@@ -267,11 +285,6 @@ public:
             return;
         }
 
-        bool sawDecimal = false;
-        bool sawExponent = false;
-        bool sawExponentSign = false;
-        byte exponentSign;
-        long sciExponent = 0;
         for (; !codeUnits.empty; codeUnits.popFront)
         {
             auto digit = codeUnits.front;
@@ -312,7 +325,10 @@ public:
                     exponent += sciExponent;
 
                     if (codeUnits.empty)
+                    {
+                        round();
                         return;
+                    }
                 }
             }
 
@@ -352,12 +368,19 @@ public:
                 sawExponent = true;
             }
         }
+
+        round();
         return;
 
         Lerr:
             qNaN = true;
             coefficient = 0;
             exponent = 0;
+
+            invalidOperation = true;
+            static if (hasInvalidOperationMethod)
+                hook.onInvalidOperation(this);
+
             return;
     }
 
@@ -373,42 +396,73 @@ public:
         return false;
     }
 
-    // TODO: rename to toSimpleString a-la std.datetime, and rewrite to use
-    // writer object, define toString as toSimpleString using Appender internally
-    
     ///
-    string toString()
+    auto toString()
+    {
+        return toDecimalString();
+    }
+
+    /// Decimal strings
+    auto toDecimalString()
+    {
+        import std.array : appender;
+        auto app = appender!string();
+        toDecimalString(app);
+        return app.data;
+    }
+
+    /// ditto
+    void toDecimalString(Writer)(Writer w) if (isOutputRange!(Writer, char))
     {
         import std.math : pow;
-        import std.range : repeat, chain;
-        import std.array : array;
-        import std.utf : byCodeUnit;
+        import std.range : repeat;
 
-        auto temp = coefficient.to!string;
+        auto temp = coefficient.toChars;
         if (sign == 1)
-            temp = "-" ~ temp;
+            w.put('-');
 
         auto decimalPlace = exponent * -1;
-        
+
         if (decimalPlace > 0)
         {
             if (temp.length - decimalPlace == 0)
-                return "0." ~ temp;
+            {
+                w.put("0.");
+                w.put(temp);
+                return;
+            }
 
-            return temp[0 .. $ - decimalPlace] ~ "." ~ temp[$ - decimalPlace .. $];
+            if ((cast(long) temp.length) - decimalPlace > 0)
+            {
+                w.put(temp[0 .. $ - decimalPlace]);
+                w.put('.');
+                w.put(temp[$ - decimalPlace .. $]);
+                return;
+            }
+
+            if ((cast(long) temp.length) - decimalPlace < 0)
+            {
+                w.put("0.");
+                w.put('0'.repeat(decimalPlace - temp.length));
+                w.put(temp);
+                return;
+            }
         }
 
         if (decimalPlace < 0)
         {
-            return temp.byCodeUnit.chain('0'.repeat(exponent)).array;
+            w.put(temp);
+            w.put('0'.repeat(exponent));
+            return;
         }
 
-        return temp;
+        w.put(temp);
     }
 }
 
 // string construction
-@safe pure nothrow unittest
+@safe pure nothrow
+unittest
 {
     static struct Test
     {
@@ -425,9 +479,13 @@ public:
         bool qNaN;
         bool sNaN;
         bool inf;
+        bool invalid;
     }
 
     auto nonspecialTestValues = [
+        Test("0", 0, 0, 0),
+        Test("+0", 0, 0, 0),
+        Test("-0", 1, 0, 0),
         Test("1.0", 0, 10, -1),
         Test("0E+7", 0, 0, 7),
         Test("-0E-7", 1, 0, -7),
@@ -445,25 +503,24 @@ public:
         SpecialTest("+nan", 0, true, false, false),
         SpecialTest("-nan", 1, true, false, false),
         SpecialTest("-NAN", 1, true, false, false),
-        SpecialTest("Infinite", 0, true, false, false),
+        SpecialTest("Infinite", 0, true, false, false, true),
         SpecialTest("inf", 0, false, false, true),
         SpecialTest("-inf", 1, false, false, true),
         SpecialTest("snan", 0, false, true, false),
         SpecialTest("-snan", 1, false, true, false),
-        SpecialTest("Jack", 0, true, false, false),
-        SpecialTest("+", 0, true, false, false),
-        SpecialTest("-", 0, true, false, false),
+        SpecialTest("Jack", 0, true, false, false, true),
+        SpecialTest("+", 0, true, false, false, true),
+        SpecialTest("-", 0, true, false, false, true),
         SpecialTest("nan0123", 0, true, false, false),
         SpecialTest("-nan0123", 1, true, false, false),
         SpecialTest("snan0123", 0, false, true, false),
-        SpecialTest("12+3", 0, true, false, false),
-        SpecialTest("1.2.3", 0, true, false, false),
-        SpecialTest("123.0E+7E+7", 0, true, false, false),
+        SpecialTest("12+3", 0, true, false, false, true),
+        SpecialTest("1.2.3", 0, true, false, false, true),
+        SpecialTest("123.0E+7E+7", 0, true, false, false, true),
     ];
 
     foreach (el; nonspecialTestValues)
     {
-        //writeln(el.val);
         auto d = Decimal!()(el.val);
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
@@ -472,11 +529,11 @@ public:
 
     foreach (el; specialTestValues)
     {
-        //writeln(el.val);
-        auto d = Decimal!()(el.val);
+        auto d = Decimal!(NoOp)(el.val);
         assert(d.qNaN == el.qNaN);
         assert(d.sNaN == el.sNaN);
         assert(d.inf == el.inf);
+        assert(d.invalidOperation == el.invalid);
     }
 }
 
@@ -512,13 +569,12 @@ unittest
         Test(10, 0, 10),
         Test(-10, 1, 10),
         Test(-1000000, 1, 1000000),
-        Test(long.max, 0, long.max),
-        Test(long.min, 1, long.min),
+        Test(int.max, 0, int.max),
+        Test(-2147483648, 1, 2147483648),
     ];
 
     foreach (el; testValues)
     {
-        //writeln(el.val);
         auto d = Decimal!()(el.val);
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
@@ -636,6 +692,9 @@ unittest
 
     auto t10 = Decimal!()(1234.0);
     assert(t10.toString() == "1234");
+
+    auto t11 = Decimal!()("1.2345678E-7");
+    assert(t11.toString() == "0.00000012345678");
 }
 
 // test rounding
@@ -706,7 +765,6 @@ unittest
     foreach (e; downValues)
     {
         auto d = Decimal!(DownHook)(e.coefficient);
-        d.round();
         assert(d.coefficient == e.expected);
         assert(d.rounded == e.rounded);
         assert(d.inexact == e.inexact);
@@ -714,7 +772,6 @@ unittest
     foreach (e; upValues)
     {
         auto d = Decimal!(UpHook)(e.coefficient);
-        d.round();
         assert(d.coefficient == e.expected);
         assert(d.rounded == e.rounded);
         assert(d.inexact == e.inexact);
@@ -722,11 +779,14 @@ unittest
     foreach (e; halfUpValues)
     {
         auto d = Decimal!(HalfUpHook)(e.coefficient);
-        d.round();
         assert(d.coefficient == e.expected);
         assert(d.rounded == e.rounded);
         assert(d.inexact == e.inexact);
     }
+
+    // Test that the exponent is properly changed
+    auto de = decimal!(HalfUpHook)("1.2345678E-7");
+    assert(de.exponent == -11);
 
     // test calling of defined hook methods
     static struct ThrowHook
@@ -740,8 +800,7 @@ unittest
         }
     }
 
-    auto d = Decimal!(ThrowHook)(1_234_567);
-    assertThrown(d.round());
+    assertThrown!Exception(Decimal!(ThrowHook)(1_234_567));
 }
 
 /**
