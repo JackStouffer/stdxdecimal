@@ -19,7 +19,7 @@ import std.conv;
  *
  * [sign, coefficient, exponent]
  */
-struct Decimal(Hook = DefaultHook)
+struct Decimal(Hook = Abort)
 {
     import std.experimental.allocator.common : stateSize;
 
@@ -747,7 +747,7 @@ unittest
 /**
  * Factory function
  */
-auto decimal(R, Hook = DefaultHook)(R r)
+auto decimal(Hook = Abort, R)(R r)
 if ((isForwardRange!R &&
     isSomeChar!(ElementEncodingType!R) &&
     !isInfinite!R) || isNumeric!R)
@@ -823,17 +823,17 @@ enum Rounding
 }
 
 /**
- * spec "Basic default context"
- *
  * Will halt program on division by zero, invalid operations,
  * overflows, and underflows
+ *
+ * Has 16 significant digits, rounds half up
  */
-struct DefaultHook
+struct Abort
 {
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
-    enum uint precision = 9;
+    enum uint precision = 16;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -857,6 +857,185 @@ struct DefaultHook
     static void onUnderflow(T)(T d) if (isInstanceOf!(Decimal, T))
     {
         assert(0, "Underflow");
+    }
+}
+
+/**
+ * Will throw exceptions on division by zero, invalid operations,
+ * overflows, and underflows
+ *
+ * Has 16 significant digits, rounds half up
+ */
+struct Throw
+{
+    ///
+    enum Rounding roundingMode = Rounding.HalfUp;
+    ///
+    enum uint precision = 16;
+
+    ///
+    static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        throw new DivisionByZero();
+    }
+
+    ///
+    static void onInvalidOperation(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        throw new InvalidOperation();
+    }
+
+    ///
+    static void onOverflow(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        throw new Overflow();
+    }
+
+    ///
+    static void onUnderflow(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        throw new Underflow();
+    }
+}
+
+/**
+ * Does nothing on invalid operations except the proper flags
+ *
+ * Has 16 significant digits, rounds half up
+ */
+struct NoOp
+{
+    ///
+    enum Rounding roundingMode = Rounding.HalfUp;
+    ///
+    enum uint precision = 16;
+}
+
+/**
+ * Thrown when using $(LREF Throw) and division by zero occurs
+ */
+class DivisionByZero : Exception
+{
+    /++
+        Params:
+            msg  = The message for the exception.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+            next = The previous exception in the chain of exceptions, if any.
+    +/
+    this(string msg, string file = __FILE__, size_t line = __LINE__,
+         Throwable next = null) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+
+    /++
+        Params:
+            msg  = The message for the exception.
+            next = The previous exception in the chain of exceptions.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+    +/
+    this(string msg, Throwable next, string file = __FILE__,
+         size_t line = __LINE__) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+}
+
+/**
+ * Thrown when using $(LREF Throw) and an invalid operation occurs
+ */
+class InvalidOperation : Exception
+{
+    /++
+        Params:
+            msg  = The message for the exception.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+            next = The previous exception in the chain of exceptions, if any.
+    +/
+    this(string msg, string file = __FILE__, size_t line = __LINE__,
+         Throwable next = null) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+
+    /++
+        Params:
+            msg  = The message for the exception.
+            next = The previous exception in the chain of exceptions.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+    +/
+    this(string msg, Throwable next, string file = __FILE__,
+         size_t line = __LINE__) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+}
+
+/**
+ * Thrown when using $(LREF Throw) and overflow occurs
+ */
+class Overflow : Exception
+{
+    /++
+        Params:
+            msg  = The message for the exception.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+            next = The previous exception in the chain of exceptions, if any.
+    +/
+    this(string msg, string file = __FILE__, size_t line = __LINE__,
+         Throwable next = null) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+
+    /++
+        Params:
+            msg  = The message for the exception.
+            next = The previous exception in the chain of exceptions.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+    +/
+    this(string msg, Throwable next, string file = __FILE__,
+         size_t line = __LINE__) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+}
+
+/**
+ * Thrown when using $(LREF Throw) and underflow occurs
+ */
+class Underflow : Exception
+{
+    /++
+        Params:
+            msg  = The message for the exception.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+            next = The previous exception in the chain of exceptions, if any.
+    +/
+    this(string msg, string file = __FILE__, size_t line = __LINE__,
+         Throwable next = null) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
+    }
+
+    /++
+        Params:
+            msg  = The message for the exception.
+            next = The previous exception in the chain of exceptions.
+            file = The file where the exception occurred.
+            line = The line number where the exception occurred.
+    +/
+    this(string msg, Throwable next, string file = __FILE__,
+         size_t line = __LINE__) @nogc @safe pure nothrow
+    {
+        super(msg, file, line, next);
     }
 }
 
