@@ -15,7 +15,7 @@ To engineering string | ❌
 All rounding types | ❌
 Equals | ❌
 Compare | ❌
-Addition/Subtraction | ❌
+Addition/Subtraction | ✓
 Multiply | ❌
 Divide | ❌
 abs | ❌
