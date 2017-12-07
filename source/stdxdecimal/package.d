@@ -384,22 +384,226 @@ public:
             return;
     }
 
-    ///
-    bool opEquals(T)(T f) if (isNumeric!T)
+    /**
+     * The result has the hook of the left hand side. Invalid operations
+     * call `onInvalidOperation` on the `hook` on the result and set the
+     * result's flag to `true`. Does not effect the left hand side of the
+     * operation.
+     *
+     * When the right hand side is a built-in numeric type, the default
+     * hook `Abort` is used for its decimal representation.
+     */
+    auto opBinary(string op, T)(T rhs) if (op == "+" || op == "-")
     {
-        return false;
+        static if (isNumeric!T)
+        {
+            auto temp = decimal(rhs);
+            return mixin("this " ~ op ~ " temp");
+        }
+        else static if (op == "+" || op == "-")
+        {
+            import core.checkedint : mulu;
+            import std.algorithm.comparison : min;
+            import std.math : abs;
+
+            static if (op == "-")
+                rhs.sign = rhs.sign == 0 ? 1 : 0;
+
+            Decimal!(hook) res;
+
+            if (sNaN || rhs.sNaN)
+            {
+                if (sign == 0)
+                {
+                    res.sNaN = true;
+                }
+                else
+                {
+                    res.sNaN = true;
+                    res.sign = 1;
+                }
+                
+                res.invalidOperation = true;
+                static if (hasInvalidOperationMethod)
+                    res.hook.onInvalidOperation(this);
+                return res;
+            }
+
+            if (qNaN || rhs.qNaN)
+            {
+                if (sign == 1)
+                    res.sign = 1;
+
+                res.qNaN = true;
+                return res;
+            }
+
+            if (inf && rhs.inf)
+            {
+                if (sign == 1 && rhs.sign == 1)
+                {
+                    res.sign = 1;
+                    res.inf = true;
+                    return res;
+                }
+
+                if (sign == 0 && rhs.sign == 0)
+                {
+                    res.inf = true;
+                    return res;
+                }
+
+                // -Inf + Inf makes no sense
+                res.qNaN = true;
+                res.invalidOperation = true;
+                return res;
+            }
+
+            if (inf)
+            {
+                res.inf = true;
+                res.sign = sign;
+                return res;
+            }
+
+            if (rhs.inf)
+            {
+                res.inf = true;
+                res.sign = rhs.sign;
+                return res;
+            }
+
+            res = Decimal!(hook)(0);
+            auto alignedCoefficient = coefficient;
+            auto rhsAlignedCoefficient = rhs.coefficient;
+
+            if (exponent != rhs.exponent)
+            {
+                long diff;
+                bool overflow;
+
+                if (exponent > rhs.exponent)
+                {
+                    diff = abs(exponent - rhs.exponent);
+                    alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
+
+                    // the Overflow condition is only raised if exponents are incorrect,
+                    // has nothing to do with coefficients, so abort
+                    if (overflow)
+                        assert(0, "Arithmetic operation failed due to coefficient overflow");
+                }
+                else
+                {
+                    diff = abs(rhs.exponent - exponent);
+                    rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
+                    if (overflow)
+                        assert(0, "Arithmetic operation failed due to coefficient overflow");
+                }
+            }
+
+            // If the signs of the operands differ then the smaller aligned coefficient
+            // is subtracted from the larger; otherwise they are added.
+            if (sign == rhs.sign)
+            {
+                if (alignedCoefficient >= rhsAlignedCoefficient)
+                    res.coefficient = alignedCoefficient + rhsAlignedCoefficient;
+                else
+                    res.coefficient = rhsAlignedCoefficient + alignedCoefficient;
+            }
+            else
+            {
+                if (alignedCoefficient >= rhsAlignedCoefficient)
+                    res.coefficient = alignedCoefficient - rhsAlignedCoefficient;
+                else
+                    res.coefficient = rhsAlignedCoefficient - alignedCoefficient;
+            }
+
+            res.exponent = min(exponent, rhs.exponent);
+
+            if (res.coefficient != 0)
+            {
+                // the sign of the result is the sign of the operand having
+                // the larger absolute value.
+                if (alignedCoefficient >= rhsAlignedCoefficient)
+                    res.sign = sign;
+                else
+                    res.sign = rhs.sign;
+            }
+            else
+            {
+                if (sign == 1 && rhs.sign == 1)
+                    res.sign = 1;
+
+                static if (hook.roundingMode == Rounding.Floor)
+                    if (sign != rhs.sign)
+                        res.sign = 1;
+            }
+
+            res.round();
+            return res;
+        }
+        else
+        {
+            static assert(0, "Not implemented yet");
+        }
+    }
+
+    /**
+     * The spec says that comparing `NAN`s should yield `NAN`.
+     * Unfortunately this isn't possible in D, as the return value of `opCmp` must be
+     * [`-1`, `1`]. So, `-INF` is less than all numbers, `-NAN` is greater than `-INF` but
+     * less than all other numbers, `NAN` is greater than `-NAN` but less than all other
+     * numbers and inf is greater than all numbers. `-NAN` and `NAN` are equal to
+     * themselves. 
+     *
+     * Signaling NAN is an invalid operation and will always yield `-1`.
+     */
+    int opCmp(T)(const T d) // For some reason isInstanceOf refuses to work here
+    {
+        static if (!isNumeric!T)
+        {
+            if (sNaN || d.sNaN)
+            {
+                invalidOperation = true;
+                static if (hasInvalidOperationMethod)
+                    hook.onInvalidOperation(this);
+                return -1;
+            }
+
+            if (inf && sign == 1 && (inf != d.inf || sign != d.sign))
+                return -1;
+            if (inf && sign == 0 && (inf != d.inf || sign != d.sign))
+                return 1;
+            if (inf && d.inf && sign == d.sign)
+                return 0;
+
+            if (qNaN && d.qNaN)
+            {
+                if (sign == d.sign)
+                    return 0;
+                if (sign == 1)
+                    return -1;
+
+                return 1;
+            }
+
+            if (qNaN && !d.qNaN)
+                return -1;
+            if (!qNaN && d.qNaN)
+                return 1;
+
+            return 0;
+        }
+        else
+        {
+            return this.opCmp(d.decimal);
+        }
     }
 
     ///
-    bool opEquals(T)(T d) if (is(T : Decimal))
+    bool opEquals(T)(const T d)
     {
-        return false;
-    }
-
-    ///
-    auto toString()
-    {
-        return toDecimalString();
+        return this.opCmp(d) == 0;
     }
 
     ///
@@ -525,6 +729,8 @@ unittest
         SpecialTest("-nan", 1, true, false, false),
         SpecialTest("-NAN", 1, true, false, false),
         SpecialTest("Infinite", 0, true, false, false, true),
+        SpecialTest("infinity", 0, false, false, true),
+        SpecialTest("-INFINITY", 1, false, false, true),
         SpecialTest("inf", 0, false, false, true),
         SpecialTest("-inf", 1, false, false, true),
         SpecialTest("snan", 0, false, true, false),
@@ -654,6 +860,111 @@ unittest
         assert(d.sNaN == el.sNaN);
         assert(d.inf == el.inf);
     }
+}
+
+// addition and subtraction
+unittest
+{
+    static struct Test
+    {
+        string val1;
+        string val2;
+        string expected;
+        bool invalidOperation;
+    }
+
+    auto testPlusValues = [
+        Test("-0", "-0", "-0"),
+        Test("-0", "0", "0"),
+        Test("1", "2", "3"),
+        Test("-5", "-3", "-8"),
+        Test("5.75", "3.3", "9.05"),
+        Test("1.23456789", "1.00000000", "2.23456789"),
+        Test("10E5", "10E4", "1100000"),
+        Test("0.9998", "0.0000", "0.9998"),
+        Test("1", "0.0001", "1.0001"),
+        Test("1", "0.00", "1.00"),
+        Test("123.00", "3000.00", "3123.00"),
+        Test("123.00", "3000.00", "3123.00"),
+        Test("sNaN", "sNaN", "sNaN", true),
+        Test("-sNaN", "sNaN", "-sNaN", true),
+        Test("NaN", "sNaN", "sNaN", true),
+        Test("sNaN", "1000", "sNaN", true),
+        Test("1000", "sNaN", "sNaN", true),
+        Test("1000", "NaN", "NaN"),
+        Test("NaN", "NaN", "NaN"),
+        Test("-NaN", "NaN", "-NaN"),
+        Test("NaN", "Inf", "NaN"),
+        Test("-NaN", "Inf", "-NaN"),
+        Test("-Inf", "-Inf", "-Infinity"),
+        Test("-Inf", "Inf", "NaN", true),
+        Test("Inf", "-Inf", "NaN", true),
+        Test("-Inf", "-1000", "-Infinity"),
+        Test("-Inf", "1000", "-Infinity"),
+        Test("Inf", "-1000", "Infinity"),
+        Test("Inf", "1000", "Infinity")
+    ];
+
+    auto testMinusValues = [
+        Test("-0", "0", "-0"),
+        Test("0", "-0", "0"),
+        Test("0", "0", "0"),
+        Test("1.3", "0.3", "1.0"),
+        Test("1.3", "2.07", "-0.77"),
+        Test("1.25", "1.25", "0.00"),
+        Test("3", "-3.0", "6.0"),
+        Test("1.23456789", "1.00000000", "0.23456789"),
+        Test("10.23456793", "10.23456789", "0.00000004"),
+        Test("0.999999999", "1", "-0.000000001"),
+        Test("10000e+9", "7", "9999999999993"),
+        Test("2.000E-3", "1.00200", "-1.000000"),
+        Test("-Inf", "Inf", "-Infinity"),
+        Test("-Inf", "1000", "-Infinity"),
+        Test("1000", "-Inf", "Infinity"),
+        Test("NaN", "Inf", "NaN"),
+        Test("Inf", "NaN", "NaN"),
+        Test("NaN", "NaN", "NaN"),
+        Test("-NaN", "NaN", "-NaN"),
+        Test("sNaN", "0", "sNaN", true),
+        Test("sNaN", "-Inf", "sNaN", true),
+        Test("sNaN", "NaN", "sNaN", true),
+        Test("1000", "sNaN", "sNaN", true),
+        Test("-sNaN", "sNaN", "-sNaN", true),
+        Test("Inf", "Inf", "NaN", true),
+        Test("-Inf", "-Inf", "NaN", true),
+    ];
+
+    foreach (el; testPlusValues)
+    {
+        auto v1 = decimal!(NoOp)(el.val1);
+        auto v2 = decimal(el.val2);
+        auto res = v1 + v2;
+        assert(res.toString() == el.expected);
+        assert(res.invalidOperation == el.invalidOperation);
+    }
+
+    foreach (el; testMinusValues)
+    {
+        auto v1 = decimal!(NoOp)(el.val1);
+        auto v2 = decimal(el.val2);
+        auto res = v1 - v2;
+        assert(res.toString() == el.expected);
+        assert(res.invalidOperation == el.invalidOperation);
+    }
+
+    static struct CustomHook
+    {
+        enum Rounding roundingMode = Rounding.HalfUp;
+        enum uint precision = 3;
+    }
+
+    // rounding test on addition
+    auto d1 = decimal!(CustomHook)("0.999E-2");
+    auto d2 = decimal!(CustomHook)("0.1E-2");
+    auto v = d1 + d2;
+    assert(v.toString == "0.0110");
+    assert(v.inexact);
+    assert(v.rounded);
 }
 
 // equals float
