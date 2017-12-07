@@ -1007,13 +1007,13 @@ unittest
     assert(v.rounded);
 
     // higher precision tests
-    auto d3 = decimal!(High)("10000e+9");
-    auto d4 = decimal!(High)("7");
+    auto d3 = decimal!(HighPrecision)("10000e+9");
+    auto d4 = decimal!(HighPrecision)("7");
     auto v2 = d3 - d4;
     assert(v2.toString() == "9999999999993");
 
-    auto d5 = decimal!(High)("1e-50");
-    auto d6 = decimal!(High)("4e-50");
+    auto d5 = decimal!(HighPrecision)("1e-50");
+    auto d6 = decimal!(HighPrecision)("4e-50");
     auto v3 = d5 + d6;
     assert(v3.toString() == "0.00000000000000000000000000000000000000000000000005");
 }
@@ -1388,7 +1388,7 @@ struct Abort
  * due to implementation constraints. Only use this if you really need
  * data that precise
  */
-static struct High
+static struct HighPrecision
 {
     enum Rounding roundingMode = Rounding.HalfUp;
     enum uint precision = 64;

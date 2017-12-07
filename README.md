@@ -40,5 +40,13 @@ void main()
     assert(d1.toString() == "1.23");
     assert(d2.toString() == "0.000123");
     assert(d3.toString() == "12300");
+
+    auto d4 = d1 + d2;
+    assert(d4.toString() == "1.230123");
+
+    auto d5 = d3 - d1;
+    assert(d5.toString() == "12298.87");
+
+    auto d6 = decimal!(HighPrecision)("1.000000000000000000000000000000000000000000000000001");
 }
 ```
