@@ -402,8 +402,11 @@ public:
         return toDecimalString();
     }
 
+    ///
+    alias toString = toDecimalString;
+
     /// Decimal strings
-    auto toDecimalString()
+    auto toDecimalString() const
     {
         import std.array : appender;
         auto app = appender!string();
@@ -412,15 +415,33 @@ public:
     }
 
     /// ditto
-    void toDecimalString(Writer)(Writer w) if (isOutputRange!(Writer, char))
+    void toDecimalString(Writer)(Writer w) const if (isOutputRange!(Writer, char))
     {
         import std.math : pow;
         import std.range : repeat;
 
-        auto temp = coefficient.toChars;
         if (sign == 1)
             w.put('-');
 
+        if (inf)
+        {
+            w.put("Infinity");
+            return;
+        }
+
+        if (qNaN)
+        {
+            w.put("NaN");
+            return;
+        }
+
+        if (sNaN)
+        {
+            w.put("sNaN");
+            return;
+        }
+
+        auto temp = coefficient.toChars;
         auto decimalPlace = exponent * -1;
 
         if (decimalPlace > 0)
@@ -538,10 +559,9 @@ unittest
 }
 
 // range construction
-unittest
+@system unittest
 {
     import std.internal.test.dummyrange;
-    import std.utf;
     auto r1 = new ReferenceForwardRange!dchar("123.456");
     auto d1 = Decimal!()(r1);
     assert(d1.coefficient == 123456);
@@ -556,6 +576,7 @@ unittest
 }
 
 // int construction
+@safe pure nothrow
 unittest
 {
     static struct Test
@@ -695,6 +716,18 @@ unittest
 
     auto t11 = Decimal!()("1.2345678E-7");
     assert(t11.toString() == "0.00000012345678");
+
+    auto t12 = Decimal!()("INF");
+    assert(t12.toString() == "Infinity");
+
+    auto t13 = Decimal!()("-INF");
+    assert(t13.toString() == "-Infinity");
+
+    auto t14 = Decimal!()("NAN");
+    assert(t14.toString() == "NaN");
+
+    auto t15 = Decimal!()("-NAN");
+    assert(t15.toString() == "-NaN");
 }
 
 // test rounding
