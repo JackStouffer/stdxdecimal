@@ -12,12 +12,10 @@ import std.traits;
 import std.conv;
 
 /**
- * Practically infinite above decimal place, limited to `abs(long.min)` number of
- * decimal places
+ * Behavior is defined by `Hook`. Number of significant digits is limited by 
+ * `Hook.precision`.
  * 
  * Spec: http://speleotrove.com/decimal/decarith.html
- *
- * [sign, coefficient, exponent]
  */
 struct Decimal(Hook = Abort)
 {
@@ -47,9 +45,15 @@ package:
     bool inf;
 
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
-    // TODO, given high enough precision, or some other argument, this should
-    // automatically become a BigInt
-    ulong coefficient;
+    static if (useBigInt)
+    {
+        import std.BigInt : BigInt;
+        BigInt coefficient;
+    }
+    else
+    {
+        ulong coefficient;
+    }
     long exponent;
 
     enum hasClampedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onClamped(d); });
@@ -60,6 +64,10 @@ package:
     enum hasOverflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onOverflow(d); });
     enum hasSubnormalMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onSubnormal(d); });
     enum hasUnderflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onUnderflow(d); });
+
+    // The cut off point is set at 9 because 999_999_999 ^^ 2
+    // can still fit in a ulong
+    enum useBigInt = Hook.precision > 9;
 
     /*
         rounds the coefficient via `Hook`s rounding mode. Also sets the proper
@@ -157,7 +165,7 @@ public:
      * Note: Float construction less accurate that string, Use
      * string construction if possible
      */
-    this(T)(T val) if (isNumeric!T)
+    this(T)(T val) pure if (isNumeric!T)
     {
         // the behavior of conversion from built-in number types
         // isn't covered by the spec, so we can do whatever we
@@ -402,7 +410,6 @@ public:
         }
         else static if (op == "+" || op == "-")
         {
-            import core.checkedint : mulu;
             import std.algorithm.comparison : min;
             import std.math : abs;
 
@@ -485,19 +492,36 @@ public:
                 if (exponent > rhs.exponent)
                 {
                     diff = abs(exponent - rhs.exponent);
-                    alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
 
-                    // the Overflow condition is only raised if exponents are incorrect,
-                    // has nothing to do with coefficients, so abort
-                    if (overflow)
-                        assert(0, "Arithmetic operation failed due to coefficient overflow");
+                    static if (useBigInt)
+                    {
+                        alignedCoefficient *= 10 ^^ diff;
+                    }
+                    else
+                    {
+                        import core.checkedint : mulu;
+                        alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
+                        // the Overflow condition is only raised if exponents are incorrect,
+                        // has nothing to do with coefficients, so abort
+                        if (overflow)
+                            assert(0, "Arithmetic operation failed due to coefficient overflow");
+                    }
                 }
                 else
                 {
                     diff = abs(rhs.exponent - exponent);
-                    rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
-                    if (overflow)
-                        assert(0, "Arithmetic operation failed due to coefficient overflow");
+
+                    static if (useBigInt)
+                    {
+                        rhsAlignedCoefficient *= 10 ^^ diff;
+                    }
+                    else
+                    {
+                        import core.checkedint : mulu;
+                        rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
+                        if (overflow)
+                            assert(0, "Arithmetic operation failed due to coefficient overflow");      
+                    }
                 }
             }
 
@@ -609,7 +633,16 @@ public:
     ///
     alias toString = toDecimalString;
 
-    /// Decimal strings
+    /**
+     * Decimal strings
+     *
+     * Special Values:
+     *     Quiet Not A Number = `NaN`
+     *     Signal Not A Number = `sNaN`
+     *     Infinite = `Infinity`
+     *
+     *     If negative, then all of above have `-` pre-pended
+     */
     auto toDecimalString() const
     {
         import std.array : appender;
@@ -645,7 +678,16 @@ public:
             return;
         }
 
-        auto temp = coefficient.toChars;
+        static if (useBigInt)
+        {
+            import std.bigint : toDecimalString;
+            auto temp = coefficient.toDecimalString;
+        }
+        else
+        {
+            auto temp = coefficient.toChars;
+        }
+
         auto decimalPlace = exponent * -1;
 
         if (decimalPlace > 0)
@@ -765,7 +807,7 @@ unittest
 }
 
 // range construction
-@system unittest
+@system pure unittest
 {
     import std.internal.test.dummyrange;
     auto r1 = new ReferenceForwardRange!dchar("123.456");
@@ -796,8 +838,7 @@ unittest
         Test(10, 0, 10),
         Test(-10, 1, 10),
         Test(-1000000, 1, 1000000),
-        Test(int.max, 0, int.max),
-        Test(-2147483648, 1, 2147483648),
+        Test(-147_483_648, 1, 147_483_648),
     ];
 
     foreach (el; testValues)
@@ -863,7 +904,7 @@ unittest
 }
 
 // addition and subtraction
-unittest
+@system unittest
 {
     static struct Test
     {
@@ -914,9 +955,8 @@ unittest
         Test("1.25", "1.25", "0.00"),
         Test("3", "-3.0", "6.0"),
         Test("1.23456789", "1.00000000", "0.23456789"),
-        Test("10.23456793", "10.23456789", "0.00000004"),
+        Test("10.2345679", "10.2345675", "0.0000004"),
         Test("0.999999999", "1", "-0.000000001"),
-        Test("10000e+9", "7", "9999999999993"),
         Test("2.000E-3", "1.00200", "-1.000000"),
         Test("-Inf", "Inf", "-Infinity"),
         Test("-Inf", "1000", "-Infinity"),
@@ -965,6 +1005,70 @@ unittest
     assert(v.toString == "0.0110");
     assert(v.inexact);
     assert(v.rounded);
+
+    // higher precision tests
+    auto d3 = decimal!(High)("10000e+9");
+    auto d4 = decimal!(High)("7");
+    auto v2 = d3 - d4;
+    assert(v2.toString() == "9999999999993");
+
+    auto d5 = decimal!(High)("1e-50");
+    auto d6 = decimal!(High)("4e-50");
+    auto v3 = d5 + d6;
+    assert(v3.toString() == "0.00000000000000000000000000000000000000000000000005");
+}
+
+// cmp and equals
+unittest
+{
+    static struct Test
+    {
+        string val1;
+        string val2;
+        int expected;
+    }
+
+    auto testValues = [
+        Test("inf", "0", 1),
+        Test("-inf", "0", -1),
+        Test("-inf", "-inf", 0),
+        Test("inf", "-inf", 1),
+        Test("-inf", "inf", -1),
+        Test("NaN", "1000", -1),
+        Test("-NaN", "1000", -1),
+        Test("1000", "NAN", 1),
+        Test("1000", "-NAN", 1),
+        Test("NaN", "inf", -1),
+        Test("-NaN", "inf", -1),
+        Test("-NaN", "NaN", -1),
+        Test("NaN", "-NaN", 1),
+        Test("-NaN", "-NaN", 0),
+        Test("NaN", "NaN", 0),
+        Test("0", "-0", -1),
+        Test("2.1", "3", -1),
+        Test("2.1", "2.1", 0),
+        Test("2.1", "2.10", 0),
+        Test("3", "2.1", 1),
+        Test("2.1", "-3", 1),
+        Test("-3", "2.1", -1),
+        Test("-10", "-10", 0),
+        Test("00", "00", 0),
+        Test("70E-1", "7", 0),
+        Test("8", "0.7E+1", 1),
+        Test("-8.0", "7.0", -1),
+        Test("80E-1", "-9", 1),
+        Test("1E-15", "1", -1),
+    ];
+
+    //foreach (el; testValues)
+    //{
+    //    writeln(el);
+    //    auto v1 = decimal(el.val1);
+    //    auto v2 = decimal(el.val2);
+    //    assert(v1.opCmp(v2) == el.expected);
+    //}
+
+    //assert(decimal("19.9999") < decimal("21.222222"));
 }
 
 // equals float
@@ -1004,8 +1108,8 @@ unittest
     t3.exponent = -4;
     assert(t3.toString() == "988855.5555");
 
-    auto t4 = Decimal!()("300088.44000");
-    assert(t4.toString() == "300088.44000");
+    auto t4 = Decimal!()("300088.44");
+    assert(t4.toString() == "300088.44");
 
     auto t5 = Decimal!()("30.5E10");
     assert(t5.toString() == "305000000000");
@@ -1129,8 +1233,8 @@ unittest
     }
 
     // Test that the exponent is properly changed
-    auto de = decimal!(HalfUpHook)("1.2345678E-7");
-    assert(de.exponent == -11);
+    auto d1 = decimal!(HalfUpHook)("1.2345678E-7");
+    assert(d1.exponent == -11);
 
     // test calling of defined hook methods
     static struct ThrowHook
@@ -1145,6 +1249,17 @@ unittest
     }
 
     assertThrown!Exception(Decimal!(ThrowHook)(1_234_567));
+
+    // test rounding with BigInt
+    static struct HigherHook
+    {
+        enum uint precision = 16;
+        enum Rounding roundingMode = Rounding.HalfUp;
+    }
+
+    auto d2 = decimal!(HigherHook)("10000000000000005");
+    assert(d2.rounded);
+    assert(d2.toString() == "10000000000000010");
 }
 
 /**
@@ -1235,8 +1350,48 @@ struct Abort
 {
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
+    /**
+     * A precision of 9 allows all possible the results of +,-,*, and /
+     * to fit into a `ulong` with no issues.
+     */
+    enum uint precision = 9;
+
     ///
-    enum uint precision = 16;
+    static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Division by zero");
+    }
+
+    ///
+    static void onInvalidOperation(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Invalid operation");
+    }
+
+    ///
+    static void onOverflow(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Overflow");
+    }
+
+    ///
+    static void onUnderflow(T)(T d) if (isInstanceOf!(Decimal, T))
+    {
+        assert(0, "Underflow");
+    }
+}
+
+/**
+ * Same as abort, but offers 64 significant digits
+ *
+ * Note: Using any precision over `9` is an order of magnitude slower
+ * due to implementation constraints. Only use this if you really need
+ * data that precise
+ */
+static struct High
+{
+    enum Rounding roundingMode = Rounding.HalfUp;
+    enum uint precision = 64;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -1274,7 +1429,7 @@ struct Throw
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
-    enum uint precision = 16;
+    enum uint precision = 9;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -1311,7 +1466,7 @@ struct NoOp
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
-    enum uint precision = 16;
+    enum uint precision = 9;
 }
 
 /**
@@ -1445,18 +1600,36 @@ class Underflow : Exception
 /*
  * Get the number of digits in the decimal representation of a number
  */
-private auto numberOfDigits(T)(T x) if (isIntegral!T)
+private auto numberOfDigits(T)(T x)
 {
     import std.algorithm.comparison : max;
     import std.math : floor, log10;
 
-    static if (is(Signed!T == T))
+    static if (isIntegral!T)
     {
-        import std.math : abs;
-        x = abs(x);
-    }
+        static if (is(Signed!T == T))
+        {
+            import std.math : abs;
+            x = abs(x);
+        }
 
-    return (cast(uint) x.log10.floor.max(0)) + 1;
+        return (cast(uint) x.log10.floor.max(0)) + 1;
+    }
+    else
+    {
+        uint digits;
+
+        if (x < 0)
+            x *= -1;
+
+        while (x > 0)
+        {
+            ++digits;
+            x /= 10;
+        }
+
+        return max(digits, 1);
+    }
 }
 
 @safe @nogc pure nothrow unittest
@@ -1468,4 +1641,19 @@ private auto numberOfDigits(T)(T x) if (isIntegral!T)
     assert(numberOfDigits(1_000_000) == 7);
     assert(numberOfDigits(-1_000_000) == 7);
     assert(numberOfDigits(123_456) == 6);
+}
+
+
+@system pure unittest
+{
+    import std.bigint;
+
+    assert(numberOfDigits(BigInt("0")) == 1);
+    assert(numberOfDigits(BigInt("1")) == 1);
+    assert(numberOfDigits(BigInt("1_000")) == 4);
+    assert(numberOfDigits(BigInt("-1_000")) == 4);
+    assert(numberOfDigits(BigInt("1_000_000")) == 7);
+    assert(numberOfDigits(BigInt("123_456")) == 6);
+    assert(numberOfDigits(BigInt("123_456")) == 6);
+    assert(numberOfDigits(BigInt("123_456_789_101_112_131_415_161")) == 24);
 }
