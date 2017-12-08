@@ -23,15 +23,23 @@ struct Decimal(Hook = Abort)
 
     static assert(
         hasMember!(Hook, "precision") && is(typeof(Hook.precision) : uint),
-        "The Hook must have a defined precision"
+        "The Hook must have a defined precision that's convertible to uint"
+    );
+    static assert(
+        isEnum!(Hook.precision),
+        "Hook.precision must be readable at compile-time"
     );
     static assert(
         hasMember!(Hook, "roundingMode") && is(typeof(Hook.roundingMode) == Rounding),
         "The Hook must have a defined Rounding"
     );
     static assert(
+        isEnum!(Hook.roundingMode),
+        "Hook.roundingMode must be readable at compile-time"
+    );
+    static assert(
         hook.precision > 1,
-        "Hook precision is too small"
+        "Hook.precision is too small (must be at least 2)"
     );
 
 package:
@@ -42,6 +50,7 @@ package:
     bool qNaN;
     // signaling NaN
     bool sNaN;
+    // Infinite
     bool inf;
 
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
@@ -575,12 +584,18 @@ public:
     /**
      * The spec says that comparing `NAN`s should yield `NAN`.
      * Unfortunately this isn't possible in D, as the return value of `opCmp` must be
-     * [`-1`, `1`]. So, `-INF` is less than all numbers, `-NAN` is greater than `-INF` but
+     * [`-1`, `1`].
+     *
+     * Further, in D, the NaN values of floating point types always return `false` in
+     * any comparison. But, this makes sorting an array with NaN values impossible.
+     *
+     * So, `-INF` is less than all numbers, `-NAN` is greater than `-INF` but
      * less than all other numbers, `NAN` is greater than `-NAN` but less than all other
      * numbers and inf is greater than all numbers. `-NAN` and `NAN` are equal to
      * themselves. 
      *
-     * Signaling NAN is an invalid operation and will always yield `-1`.
+     * Signaling NAN is an invalid operation, and will trigger the appropriate hook
+     * method and always yield `-1`.
      */
     int opCmp(T)(const T d) // For some reason isInstanceOf refuses to work here
     {
@@ -616,7 +631,65 @@ public:
             if (!qNaN && d.qNaN)
                 return 1;
 
-            return 0;
+            Decimal!(Hook) lhs;
+            Decimal!(d.hook) rhs;
+
+            // If the signs of the operands differ, a value representing each
+            // operand (’-1’ if the operand is less than zero, ’0’ if the
+            // operand is zero or negative zero, or ’1’ if the operand is
+            // greater than zero) is used in place of that operand for the
+            // comparison instead of the actual operand.
+            if (sign != d.sign)
+            {
+                if (sign == 0)
+                {
+                    if (coefficient > 0)
+                        lhs.coefficient = 1;
+                }
+                else
+                {
+                    if (coefficient > 0)
+                    {
+                        lhs.sign = 1;
+                        lhs.coefficient = 1;
+                    }
+                }
+
+                if (d.sign == 0)
+                {
+                    if (d.coefficient > 0)
+                        rhs.coefficient = 1;
+                }
+                else
+                {
+                    if (d.coefficient > 0)
+                    {
+                        rhs.sign = 1;
+                        rhs.coefficient = 1;
+                    }
+                }
+            }
+            else
+            {
+                lhs.sign = sign;
+                lhs.coefficient = coefficient;
+                lhs.exponent = exponent;
+                rhs.sign = d.sign;
+                rhs.coefficient = d.coefficient;
+                rhs.exponent = d.exponent;
+            }
+
+            auto res = lhs - rhs;
+
+            if (res.sign == 0)
+            {
+                if (res.coefficient == 0)
+                    return 0;
+                else
+                    return 1;
+            }
+
+            return -1;
         }
         else
         {
@@ -1026,6 +1099,7 @@ unittest
         string val1;
         string val2;
         int expected;
+        bool invalidOperation;
     }
 
     auto testValues = [
@@ -1044,31 +1118,39 @@ unittest
         Test("NaN", "-NaN", 1),
         Test("-NaN", "-NaN", 0),
         Test("NaN", "NaN", 0),
-        Test("0", "-0", -1),
+        Test("sNaN", "NaN", -1, true),
+        Test("sNaN", "-Inf", -1, true),
+        Test("sNaN", "100", -1, true),
+        Test("0", "-0", 0),
         Test("2.1", "3", -1),
         Test("2.1", "2.1", 0),
         Test("2.1", "2.10", 0),
         Test("3", "2.1", 1),
         Test("2.1", "-3", 1),
         Test("-3", "2.1", -1),
-        Test("-10", "-10", 0),
         Test("00", "00", 0),
         Test("70E-1", "7", 0),
         Test("8", "0.7E+1", 1),
         Test("-8.0", "7.0", -1),
         Test("80E-1", "-9", 1),
         Test("1E-15", "1", -1),
+        Test("-0E2", "0", 0),
+        Test("-8", "-70E-1", -1),
+        Test("-12.1234", "-12.000000000", -1),
     ];
 
-    //foreach (el; testValues)
-    //{
-    //    writeln(el);
-    //    auto v1 = decimal(el.val1);
-    //    auto v2 = decimal(el.val2);
-    //    assert(v1.opCmp(v2) == el.expected);
-    //}
+    foreach (el; testValues)
+    {
+        auto v1 = decimal!(NoOp)(el.val1);
+        auto v2 = decimal!(NoOp)(el.val2);
+        assert(v1.opCmp(v2) == el.expected);
+        assert(v1.invalidOperation == el.invalidOperation);
+    }
 
-    //assert(decimal("19.9999") < decimal("21.222222"));
+    // make sure equals compiles, already covered behavior in
+    // cmp tests
+    assert(decimal("19.9999") != decimal("21.222222"));
+    assert(decimal("22.000") == decimal("22"));
 }
 
 // equals float
@@ -1656,4 +1738,25 @@ private auto numberOfDigits(T)(T x)
     assert(numberOfDigits(BigInt("123_456")) == 6);
     assert(numberOfDigits(BigInt("123_456")) == 6);
     assert(numberOfDigits(BigInt("123_456_789_101_112_131_415_161")) == 24);
+}
+
+/*
+ * Detect whether $(D X) is an enum type, or manifest constant.
+ */
+private template isEnum(X...) if (X.length == 1)
+{
+    static if (is(X[0] == enum))
+    {
+        enum isEnum = true;
+    }
+    else static if (!is(X[0]) &&
+                    !is(typeof(X[0]) == void) &&
+                    !isFunction!(X[0]))
+    {
+        enum isEnum =
+            !is(typeof({ auto ptr = &X[0]; }))
+         && !is(typeof({ enum off = X[0].offsetof; }));
+    }
+    else
+        enum isEnum = false;
 }

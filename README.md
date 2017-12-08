@@ -13,8 +13,10 @@ To decimal string | ✓
 To scientific string | ❌
 To engineering string | ❌
 All rounding types | ❌
-Equals | ❌
-Compare | ❌
+Overflow/Underflow Behavior | ❌
+Subnormal Behavior | ❌
+Equals | ✓
+Compare | ✓
 Addition/Subtraction | ✓
 Multiply | ❌
 Divide | ❌
