@@ -20,6 +20,8 @@ Compare | ✓
 Addition/Subtraction | ✓
 Multiply | ❌
 Divide | ❌
+Unary Plus/Minus/Increment/Decrement | ❌
+Cast Int/Float/Bool | ❌
 abs | ❌
 ln | ❌
 log10 | ❌

@@ -9,7 +9,6 @@ module stdxdecimal;
 import std.stdio;
 import std.range.primitives;
 import std.traits;
-import std.conv;
 
 /**
  * Behavior is defined by `Hook`. Number of significant digits is limited by 
@@ -745,13 +744,17 @@ public:
     auto toDecimalString() const
     {
         import std.array : appender;
+        import std.math : abs;
+
         auto app = appender!string();
+        if (exponent > 10 || exponent < -10)
+            app.reserve(abs(exponent) + hook.precision);
         toDecimalString(app);
         return app.data;
     }
 
     /// ditto
-    void toDecimalString(Writer)(Writer w) const if (isOutputRange!(Writer, char))
+    void toDecimalString(Writer)(auto ref Writer w) const if (isOutputRange!(Writer, char))
     {
         import std.math : pow;
         import std.range : repeat;
@@ -784,6 +787,7 @@ public:
         }
         else
         {
+            import std.conv : toChars;
             auto temp = coefficient.toChars;
         }
 
