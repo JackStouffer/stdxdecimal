@@ -79,8 +79,11 @@ package:
     enum useBigInt = Hook.precision > 9;
 
     /*
-        rounds the coefficient via `Hook`s rounding mode. Also sets the proper
-        flags and calls the proper `Hook` defined methods
+        rounds the coefficient via `Hook`s rounding mode.
+
+        Rounded is always set if the coefficient is changed
+
+        Inexact is set if the rounded digits were non-zero
      */
     auto round()
     {
@@ -89,37 +92,58 @@ package:
         if (digits <= hook.precision)
             return;
 
+        typeof(coefficient) lastDigit;
+
         static if (hook.roundingMode == Rounding.Down)
         {
             while (digits > hook.precision)
             {
+                if (!inexact)
+                    lastDigit = coefficient % 10;
                 coefficient /= 10;
                 --digits;
                 ++exponent;
+
+                if (!inexact && lastDigit != 0)
+                    inexact = true;
             }
         }
         else static if (hook.roundingMode == Rounding.Up)
         {
             while (digits > hook.precision)
             {
+                if (!inexact)
+                    lastDigit = coefficient % 10;
                 coefficient /= 10;
                 --digits;
                 ++exponent;
+
+                if (!inexact && lastDigit != 0)
+                    inexact = true;
             }
 
-            ++coefficient;
+            // If all of the discarded digits are zero the result is unchanged
+            if (inexact)
+                ++coefficient;
         }
         else static if (hook.roundingMode == Rounding.HalfUp)
         {
             while (digits > hook.precision + 1)
             {
+                if (!inexact)
+                    lastDigit = coefficient % 10;
+
                 coefficient /= 10;
                 --digits;
                 ++exponent;
+
+                if (!inexact && lastDigit != 0)
+                    inexact = true;
             }
 
-            auto lastDigit = coefficient % 10;
-
+            lastDigit = coefficient % 10;
+            if (lastDigit != 0)
+                inexact = true;
             coefficient /= 10;
             ++exponent;
 
@@ -131,12 +155,12 @@ package:
             static assert(0, "Not implemented");
         }
 
-        inexact = true;
         rounded = true;
 
-        // "any Inexact trap takes precedence over Rounded"
         static if (hasInexactMethod)
-            hook.onInexact(this);
+            if (inexact)
+                hook.onInexact(this);
+
         static if (hasRoundedMethod)
             hook.onRounded(this);
 
@@ -174,7 +198,7 @@ public:
      * Note: Float construction less accurate that string, Use
      * string construction if possible
      */
-    this(T)(T val) pure if (isNumeric!T)
+    this(T)(const T num) pure if (isNumeric!T)
     {
         // the behavior of conversion from built-in number types
         // isn't covered by the spec, so we can do whatever we
@@ -184,12 +208,14 @@ public:
         {
             import std.math : abs;
 
-            coefficient = abs(val);
-            sign = val >= 0 ? 0 : 1;
+            coefficient = abs(num);
+            sign = num >= 0 ? 0 : 1;
         }
         else
         {
             import std.math : abs, isInfinity, isNaN;
+
+            Unqual!T val = num;
 
             if (isInfinity(val))
             {
@@ -210,7 +236,7 @@ public:
 
             // while the number still has a fractional part, multiply by 10,
             // counting each time until no fractional part
-            T fraction = val - (cast(long) val);
+            Unqual!T fraction = val - (cast(long) val);
             while (fraction > 0)
             {
                 --exponent;
@@ -410,7 +436,7 @@ public:
      * When the right hand side is a built-in numeric type, the default
      * hook `Abort` is used for its decimal representation.
      */
-    auto opBinary(string op, T)(T rhs) if (op == "+" || op == "-")
+    auto opBinary(string op, T)(T rhs) const if (op == "+" || op == "-")
     {
         static if (isNumeric!T)
         {
@@ -490,8 +516,8 @@ public:
             }
 
             res = Decimal!(hook)(0);
-            auto alignedCoefficient = coefficient;
-            auto rhsAlignedCoefficient = rhs.coefficient;
+            Unqual!(typeof(coefficient)) alignedCoefficient = coefficient;
+            Unqual!(typeof(rhs.coefficient)) rhsAlignedCoefficient = rhs.coefficient;
 
             if (exponent != rhs.exponent)
             {
@@ -880,7 +906,8 @@ unittest
 }
 
 // range construction
-@system pure unittest
+@system pure
+unittest
 {
     import std.internal.test.dummyrange;
     auto r1 = new ReferenceForwardRange!dchar("123.456");
@@ -977,7 +1004,8 @@ unittest
 }
 
 // addition and subtraction
-@system unittest
+@system
+unittest
 {
     static struct Test
     {
@@ -1065,6 +1093,10 @@ unittest
         assert(res.invalidOperation == el.invalidOperation);
     }
 
+    // check that float and int compile
+    assert(decimal("2.22") + 0.01 == decimal("2.23"));
+    assert(decimal("2.22") + 1 == decimal("3.22"));
+
     static struct CustomHook
     {
         enum Rounding roundingMode = Rounding.HalfUp;
@@ -1151,22 +1183,8 @@ unittest
     // cmp tests
     assert(decimal("19.9999") != decimal("21.222222"));
     assert(decimal("22.000") == decimal("22"));
-}
-
-// equals float
-unittest
-{
-    //auto a = Decimal("1.0");
-    //assert(a == 1.0);
-
-    //auto b = Decimal("0001.0000");
-    //assert(b == 1.0);
-
-    //auto c = Decimal(1.0);
-    //assert(c == 1.0);
-
-    //auto d = Decimal(1);
-    //assert(d == 1.0);
+    assert(decimal("22.000") == 22);
+    assert(decimal("22.2") == 22.2);
 }
 
 // to string
@@ -1267,7 +1285,8 @@ unittest
         Test(123450000001, 12345, true, true),
         Test(1234649999, 12346, true, true),
         Test(123465, 12346, true, true),
-        Test(1234650001, 12346, true, true)
+        Test(1234650001, 12346, true, true),
+        Test(1234500, 12345, false, true)
     ];
     auto upValues = [
         Test(12345, 12345, false, false),
@@ -1277,7 +1296,8 @@ unittest
         Test(123451, 12346, true, true),
         Test(1234649999, 12347, true, true),
         Test(123465, 12347, true, true),
-        Test(123454, 12346, true, true)
+        Test(123454, 12346, true, true),
+        Test(1234500, 12345, false, true)
     ];
     auto halfUpValues = [
         Test(12345, 12345, false, false),
@@ -1289,7 +1309,8 @@ unittest
         Test(123464999, 12346, true, true),
         Test(123465, 12347, true, true),
         Test(1234650001, 12347, true, true),
-        Test(123456, 12346, true, true)
+        Test(123456, 12346, true, true),
+        Test(1234500, 12345, false, true)
     ];
 
     foreach (e; downValues)
