@@ -1,4 +1,4 @@
-/*
+/**
     Adapted from the specification of the General Decimal Arithmetic.
 
     This implementation is written for the D Programming Language
@@ -13,7 +13,7 @@ import std.traits;
 /**
  * Behavior is defined by `Hook`. Number of significant digits is limited by 
  * `Hook.precision`.
- * 
+ *
  * Spec: http://speleotrove.com/decimal/decarith.html
  */
 struct Decimal(Hook = Abort)
@@ -42,8 +42,8 @@ struct Decimal(Hook = Abort)
     );
 
 package:
-    // 1 indicates that the number is negative or is the negative zero
-    // and 0 indicates that the number is zero or positive.
+    // "1 indicates that the number is negative or is the negative zero
+    // and 0 indicates that the number is zero or positive."
     bool sign;
     // quiet NaN
     bool qNaN;
@@ -86,12 +86,18 @@ package:
      */
     auto round()
     {
-        auto digits = numberOfDigits(coefficient);
+        static if (hook.precision < 20)
+        {
+            enum ulong max = 10 ^^ hook.precision;
+            if (coefficient < max)
+                return;
+        }
 
+        auto digits = numberOfDigits(coefficient);
         if (digits <= hook.precision)
             return;
 
-        typeof(coefficient) lastDigit;
+        int lastDigit;
 
         static if (hook.roundingMode == Rounding.Down)
         {
@@ -358,7 +364,7 @@ public:
     bool underflow;
 
     /**
-     * Note: Float construction less accurate that string, Use
+     * Note: Float construction less accurate than string, Use
      * string construction if possible
      */
     this(T)(const T num) pure if (isNumeric!T)
@@ -1719,10 +1725,11 @@ class Underflow : Exception
 private auto numberOfDigits(T)(T x)
 {
     import std.algorithm.comparison : max;
-    import std.math : floor, log10;
 
     static if (isIntegral!T)
     {
+        import std.math : floor, log10;
+
         static if (is(Signed!T == T))
         {
             import std.math : abs;
@@ -1735,6 +1742,8 @@ private auto numberOfDigits(T)(T x)
     {
         uint digits;
 
+        if (x == 0)
+            return 1;
         if (x < 0)
             x *= -1;
 
