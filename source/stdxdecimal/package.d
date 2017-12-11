@@ -1724,10 +1724,9 @@ class Underflow : Exception
  */
 private auto numberOfDigits(T)(T x)
 {
-    import std.algorithm.comparison : max;
-
     static if (isIntegral!T)
     {
+        import std.algorithm.comparison : max;
         import std.math : floor, log10;
 
         static if (is(Signed!T == T))
@@ -1741,19 +1740,18 @@ private auto numberOfDigits(T)(T x)
     else
     {
         uint digits;
+        Unqual!(T) num = 10;
 
         if (x == 0)
             return 1;
         if (x < 0)
             x *= -1;
 
-        while (x > 0)
+        for (;; num *= 10, digits++)
         {
-            ++digits;
-            x /= 10;
+            if (x < num)
+                return digits;
         }
-
-        return max(digits, 1);
     }
 }
 
