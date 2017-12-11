@@ -55,14 +55,14 @@ package:
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
     static if (useBigInt)
     {
-        import std.BigInt : BigInt;
+        import std.bigint : BigInt;
         BigInt coefficient;
     }
     else
     {
         ulong coefficient;
     }
-    long exponent;
+    int exponent;
 
     enum hasClampedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onClamped(d); });
     enum hasRoundedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onRounded(d); });
@@ -164,6 +164,170 @@ package:
             hook.onRounded(this);
 
         return;
+    }
+
+    /*
+        Separated into its own function for readability as well as
+        allowing opCmp to skip the rounding step
+     */
+    auto addImpl(string op, bool round, T)(T rhs) const
+    {
+        import std.algorithm.comparison : min;
+        import std.math : abs;
+
+        static if (op == "-")
+            rhs.sign = rhs.sign == 0 ? 1 : 0;
+
+        Decimal!(hook) res;
+
+        if (sNaN || rhs.sNaN)
+        {
+            if (sign == 0)
+            {
+                res.sNaN = true;
+            }
+            else
+            {
+                res.sNaN = true;
+                res.sign = 1;
+            }
+
+            res.invalidOperation = true;
+            static if (hasInvalidOperationMethod)
+                res.hook.onInvalidOperation(this);
+            return res;
+        }
+
+        if (qNaN || rhs.qNaN)
+        {
+            if (sign == 1)
+                res.sign = 1;
+
+            res.qNaN = true;
+            return res;
+        }
+
+        if (inf && rhs.inf)
+        {
+            if (sign == 1 && rhs.sign == 1)
+            {
+                res.sign = 1;
+                res.inf = true;
+                return res;
+            }
+
+            if (sign == 0 && rhs.sign == 0)
+            {
+                res.inf = true;
+                return res;
+            }
+
+            // -Inf + Inf makes no sense
+            res.qNaN = true;
+            res.invalidOperation = true;
+            return res;
+        }
+
+        if (inf)
+        {
+            res.inf = true;
+            res.sign = sign;
+            return res;
+        }
+
+        if (rhs.inf)
+        {
+            res.inf = true;
+            res.sign = rhs.sign;
+            return res;
+        }
+
+        Unqual!(typeof(coefficient)) alignedCoefficient = coefficient;
+        Unqual!(typeof(rhs.coefficient)) rhsAlignedCoefficient = rhs.coefficient;
+
+        if (exponent != rhs.exponent)
+        {
+            long diff;
+            bool overflow;
+
+            if (exponent > rhs.exponent)
+            {
+                diff = abs(exponent - rhs.exponent);
+
+                static if (useBigInt)
+                {
+                    alignedCoefficient *= 10 ^^ diff;
+                }
+                else
+                {
+                    import core.checkedint : mulu;
+                    alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
+                    // the Overflow condition is only raised if exponents are incorrect,
+                    // has nothing to do with coefficients, so abort
+                    if (overflow)
+                        assert(0, "Arithmetic operation failed due to coefficient overflow");
+                }
+            }
+            else
+            {
+                diff = abs(rhs.exponent - exponent);
+
+                static if (useBigInt)
+                {
+                    rhsAlignedCoefficient *= 10 ^^ diff;
+                }
+                else
+                {
+                    import core.checkedint : mulu;
+                    rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
+                    if (overflow)
+                        assert(0, "Arithmetic operation failed due to coefficient overflow");
+                }
+            }
+        }
+
+        // If the signs of the operands differ then the smaller aligned coefficient
+        // is subtracted from the larger; otherwise they are added.
+        if (sign == rhs.sign)
+        {
+            if (alignedCoefficient >= rhsAlignedCoefficient)
+                res.coefficient = alignedCoefficient + rhsAlignedCoefficient;
+            else
+                res.coefficient = rhsAlignedCoefficient + alignedCoefficient;
+        }
+        else
+        {
+            if (alignedCoefficient >= rhsAlignedCoefficient)
+                res.coefficient = alignedCoefficient - rhsAlignedCoefficient;
+            else
+                res.coefficient = rhsAlignedCoefficient - alignedCoefficient;
+        }
+
+        res.exponent = min(exponent, rhs.exponent);
+
+        if (res.coefficient != 0)
+        {
+            // the sign of the result is the sign of the operand having
+            // the larger absolute value.
+            if (alignedCoefficient >= rhsAlignedCoefficient)
+                res.sign = sign;
+            else
+                res.sign = rhs.sign;
+        }
+        else
+        {
+            if (sign == 1 && rhs.sign == 1)
+                res.sign = 1;
+
+            static if (hook.roundingMode == Rounding.Floor)
+                if (sign != rhs.sign)
+                    res.sign = 1;
+        }
+
+        static if (round)
+            res.round();
+
+        return res;
     }
 
 public:
@@ -444,161 +608,7 @@ public:
         }
         else static if (op == "+" || op == "-")
         {
-            import std.algorithm.comparison : min;
-            import std.math : abs;
-
-            static if (op == "-")
-                rhs.sign = rhs.sign == 0 ? 1 : 0;
-
-            Decimal!(hook) res;
-
-            if (sNaN || rhs.sNaN)
-            {
-                if (sign == 0)
-                {
-                    res.sNaN = true;
-                }
-                else
-                {
-                    res.sNaN = true;
-                    res.sign = 1;
-                }
-                
-                res.invalidOperation = true;
-                static if (hasInvalidOperationMethod)
-                    res.hook.onInvalidOperation(this);
-                return res;
-            }
-
-            if (qNaN || rhs.qNaN)
-            {
-                if (sign == 1)
-                    res.sign = 1;
-
-                res.qNaN = true;
-                return res;
-            }
-
-            if (inf && rhs.inf)
-            {
-                if (sign == 1 && rhs.sign == 1)
-                {
-                    res.sign = 1;
-                    res.inf = true;
-                    return res;
-                }
-
-                if (sign == 0 && rhs.sign == 0)
-                {
-                    res.inf = true;
-                    return res;
-                }
-
-                // -Inf + Inf makes no sense
-                res.qNaN = true;
-                res.invalidOperation = true;
-                return res;
-            }
-
-            if (inf)
-            {
-                res.inf = true;
-                res.sign = sign;
-                return res;
-            }
-
-            if (rhs.inf)
-            {
-                res.inf = true;
-                res.sign = rhs.sign;
-                return res;
-            }
-
-            res = Decimal!(hook)(0);
-            Unqual!(typeof(coefficient)) alignedCoefficient = coefficient;
-            Unqual!(typeof(rhs.coefficient)) rhsAlignedCoefficient = rhs.coefficient;
-
-            if (exponent != rhs.exponent)
-            {
-                long diff;
-                bool overflow;
-
-                if (exponent > rhs.exponent)
-                {
-                    diff = abs(exponent - rhs.exponent);
-
-                    static if (useBigInt)
-                    {
-                        alignedCoefficient *= 10 ^^ diff;
-                    }
-                    else
-                    {
-                        import core.checkedint : mulu;
-                        alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
-                        // the Overflow condition is only raised if exponents are incorrect,
-                        // has nothing to do with coefficients, so abort
-                        if (overflow)
-                            assert(0, "Arithmetic operation failed due to coefficient overflow");
-                    }
-                }
-                else
-                {
-                    diff = abs(rhs.exponent - exponent);
-
-                    static if (useBigInt)
-                    {
-                        rhsAlignedCoefficient *= 10 ^^ diff;
-                    }
-                    else
-                    {
-                        import core.checkedint : mulu;
-                        rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
-                        if (overflow)
-                            assert(0, "Arithmetic operation failed due to coefficient overflow");      
-                    }
-                }
-            }
-
-            // If the signs of the operands differ then the smaller aligned coefficient
-            // is subtracted from the larger; otherwise they are added.
-            if (sign == rhs.sign)
-            {
-                if (alignedCoefficient >= rhsAlignedCoefficient)
-                    res.coefficient = alignedCoefficient + rhsAlignedCoefficient;
-                else
-                    res.coefficient = rhsAlignedCoefficient + alignedCoefficient;
-            }
-            else
-            {
-                if (alignedCoefficient >= rhsAlignedCoefficient)
-                    res.coefficient = alignedCoefficient - rhsAlignedCoefficient;
-                else
-                    res.coefficient = rhsAlignedCoefficient - alignedCoefficient;
-            }
-
-            res.exponent = min(exponent, rhs.exponent);
-
-            if (res.coefficient != 0)
-            {
-                // the sign of the result is the sign of the operand having
-                // the larger absolute value.
-                if (alignedCoefficient >= rhsAlignedCoefficient)
-                    res.sign = sign;
-                else
-                    res.sign = rhs.sign;
-            }
-            else
-            {
-                if (sign == 1 && rhs.sign == 1)
-                    res.sign = 1;
-
-                static if (hook.roundingMode == Rounding.Floor)
-                    if (sign != rhs.sign)
-                        res.sign = 1;
-            }
-
-            res.round();
-            return res;
+            return addImpl!(op, true)(rhs);
         }
         else
         {
@@ -622,7 +632,7 @@ public:
      * Signaling NAN is an invalid operation, and will trigger the appropriate hook
      * method and always yield `-1`.
      */
-    int opCmp(T)(const T d) // For some reason isInstanceOf refuses to work here
+    int opCmp(T)(T d) // For some reason isInstanceOf refuses to work here
     {
         static if (!isNumeric!T)
         {
@@ -634,12 +644,15 @@ public:
                 return -1;
             }
 
-            if (inf && sign == 1 && (inf != d.inf || sign != d.sign))
-                return -1;
-            if (inf && sign == 0 && (inf != d.inf || sign != d.sign))
-                return 1;
-            if (inf && d.inf && sign == d.sign)
-                return 0;
+            if (inf)
+            {
+                if (sign == 1 && (inf != d.inf || sign != d.sign))
+                    return -1;
+                if (sign == 0 && (inf != d.inf || sign != d.sign))
+                    return 1;
+                if (d.inf && sign == d.sign)
+                    return 0;
+            }
 
             if (qNaN && d.qNaN)
             {
@@ -657,7 +670,6 @@ public:
                 return 1;
 
             Decimal!(Hook) lhs;
-            Decimal!(d.hook) rhs;
 
             // If the signs of the operands differ, a value representing each
             // operand (’-1’ if the operand is less than zero, ’0’ if the
@@ -683,14 +695,14 @@ public:
                 if (d.sign == 0)
                 {
                     if (d.coefficient > 0)
-                        rhs.coefficient = 1;
+                        d.coefficient = 1;
                 }
                 else
                 {
                     if (d.coefficient > 0)
                     {
-                        rhs.sign = 1;
-                        rhs.coefficient = 1;
+                        d.sign = 1;
+                        d.coefficient = 1;
                     }
                 }
             }
@@ -699,12 +711,9 @@ public:
                 lhs.sign = sign;
                 lhs.coefficient = coefficient;
                 lhs.exponent = exponent;
-                rhs.sign = d.sign;
-                rhs.coefficient = d.coefficient;
-                rhs.exponent = d.exponent;
             }
 
-            auto res = lhs - rhs;
+            auto res = lhs.addImpl!("-", false)(d);
 
             if (res.sign == 0)
             {
@@ -723,7 +732,7 @@ public:
     }
 
     ///
-    bool opEquals(T)(const T d)
+    bool opEquals(T)(T d)
     {
         return this.opCmp(d) == 0;
     }
