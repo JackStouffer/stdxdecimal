@@ -1,5 +1,6 @@
 import std.stdio;
 import std.algorithm;
+import std.range;
 import std.random;
 import std.math;
 import std.conv;
@@ -64,7 +65,7 @@ void main()
     }
     foreach (_; 0 .. 1_000_000)
     {
-        arr4 ~= decimal!(HighPrecision)(uniform(-10_000.0, 10_000.0));
+        arr4 ~= decimal!(HighPrecision)(chain(toChars(uniform(-10_000, 10_000)), '0'.repeat(uniform(10, 25))));
     }
 
     writeln("Sorting");

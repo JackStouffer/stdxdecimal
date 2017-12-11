@@ -88,7 +88,7 @@ package:
     {
         static if (hook.precision < 20)
         {
-            enum ulong max = 10 ^^ hook.precision;
+            enum ulong max = 10UL ^^ hook.precision;
             if (coefficient < max)
                 return;
         }
@@ -1726,26 +1726,61 @@ private auto numberOfDigits(T)(T x)
 {
     static if (isIntegral!T)
     {
-        import std.algorithm.comparison : max;
-        import std.math : floor, log10;
-
         static if (is(Signed!T == T))
         {
             import std.math : abs;
             x = abs(x);
         }
 
-        return (cast(uint) x.log10.floor.max(0)) + 1;
+        // manual ifs are two orders of magnitude faster than using log10
+        if (x == 0UL) return 1;
+        if (x < 10UL) return 1;
+        if (x < 100UL) return 2;
+        if (x < 1_000UL) return 3;
+        if (x < 10_000UL) return 4;
+        if (x < 100_000UL) return 5;
+        if (x < 1_000_000UL) return 6;
+        if (x < 10_000_000UL) return 7;
+        if (x < 100_000_000UL) return 8;
+        if (x < 1_000_000_000UL) return 9;
+        if (x < 10_000_000_000UL) return 10;
+        if (x < 100_000_000_000UL) return 11;
+        if (x < 1_000_000_000_000UL) return 12;
+        if (x < 10_000_000_000_000UL) return 13;
+        if (x < 100_000_000_000_000UL) return 14;
+        if (x < 1_000_000_000_000_000UL) return 15;
+        if (x < 10_000_000_000_000_000UL) return 16;
+        if (x < 100_000_000_000_000_000UL) return 17;
+        if (x < 1_000_000_000_000_000_000UL) return 18;
+        return 19;
     }
     else
     {
-        uint digits;
-        Unqual!(T) num = 10;
-
-        if (x == 0)
-            return 1;
         if (x < 0)
             x *= -1;
+
+        if (x == 0UL) return 1;
+        if (x < 10UL) return 1;
+        if (x < 100UL) return 2;
+        if (x < 1_000UL) return 3;
+        if (x < 10_000UL) return 4;
+        if (x < 100_000UL) return 5;
+        if (x < 1_000_000UL) return 6;
+        if (x < 10_000_000UL) return 7;
+        if (x < 100_000_000UL) return 8;
+        if (x < 1_000_000_000UL) return 9;
+        if (x < 10_000_000_000UL) return 10;
+        if (x < 100_000_000_000UL) return 11;
+        if (x < 1_000_000_000_000UL) return 12;
+        if (x < 10_000_000_000_000UL) return 13;
+        if (x < 100_000_000_000_000UL) return 14;
+        if (x < 1_000_000_000_000_000UL) return 15;
+        if (x < 10_000_000_000_000_000UL) return 16;
+        if (x < 100_000_000_000_000_000UL) return 17;
+        if (x < 1_000_000_000_000_000_000UL) return 18;
+
+        uint digits = 18;
+        Unqual!(T) num = 1_000_000_000_000_000_000UL;
 
         for (;; num *= 10, digits++)
         {
