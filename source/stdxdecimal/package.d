@@ -1759,28 +1759,50 @@ private auto numberOfDigits(T)(T x)
         if (x < 0)
             x *= -1;
 
-        if (x == 0UL) return 1;
-        if (x < 10UL) return 1;
-        if (x < 100UL) return 2;
-        if (x < 1_000UL) return 3;
-        if (x < 10_000UL) return 4;
-        if (x < 100_000UL) return 5;
-        if (x < 1_000_000UL) return 6;
-        if (x < 10_000_000UL) return 7;
-        if (x < 100_000_000UL) return 8;
-        if (x < 1_000_000_000UL) return 9;
-        if (x < 10_000_000_000UL) return 10;
-        if (x < 100_000_000_000UL) return 11;
-        if (x < 1_000_000_000_000UL) return 12;
-        if (x < 10_000_000_000_000UL) return 13;
-        if (x < 100_000_000_000_000UL) return 14;
-        if (x < 1_000_000_000_000_000UL) return 15;
-        if (x < 10_000_000_000_000_000UL) return 16;
-        if (x < 100_000_000_000_000_000UL) return 17;
-        if (x < 1_000_000_000_000_000_000UL) return 18;
+        immutable len = x.ulongLength;
 
-        uint digits = 18;
-        Unqual!(T) num = 1_000_000_000_000_000_000UL;
+        if (len == 1)
+        {
+            if (x == 0UL) return 1;
+            if (x < 10UL) return 1;
+            if (x < 100UL) return 2;
+            if (x < 1_000UL) return 3;
+            if (x < 10_000UL) return 4;
+            if (x < 100_000UL) return 5;
+            if (x < 1_000_000UL) return 6;
+            if (x < 10_000_000UL) return 7;
+            if (x < 100_000_000UL) return 8;
+            if (x < 1_000_000_000UL) return 9;
+            if (x < 10_000_000_000UL) return 10;
+            if (x < 100_000_000_000UL) return 11;
+            if (x < 1_000_000_000_000UL) return 12;
+            if (x < 10_000_000_000_000UL) return 13;
+            if (x < 100_000_000_000_000UL) return 14;
+            if (x < 1_000_000_000_000_000UL) return 15;
+            if (x < 10_000_000_000_000_000UL) return 16;
+            if (x < 100_000_000_000_000_000UL) return 17;
+            if (x < 1_000_000_000_000_000_000UL) return 18;
+        }
+
+        uint digits = 19;
+        Unqual!(T) num = 10_000_000_000_000_000_000UL;
+
+        switch (len)
+        {
+            case 4:
+                digits = 58;
+                num *= 10_000_000_000_000_000_000UL;
+                num *= 10_000_000_000_000_000_000UL;
+                num *= 10UL;
+                break;
+            case 3:
+                digits = 39;
+                num *= 10_000_000_000_000_000_000UL;
+                num *= 10;
+                break;
+            default:
+                break;
+        }
 
         for (;; num *= 10, digits++)
         {
@@ -1805,6 +1827,8 @@ private auto numberOfDigits(T)(T x)
 @system pure unittest
 {
     import std.bigint;
+    import std.range : chain, repeat;
+    import std.utf : byCodeUnit;
 
     assert(numberOfDigits(BigInt("0")) == 1);
     assert(numberOfDigits(BigInt("1")) == 1);
@@ -1814,6 +1838,9 @@ private auto numberOfDigits(T)(T x)
     assert(numberOfDigits(BigInt("123_456")) == 6);
     assert(numberOfDigits(BigInt("123_456")) == 6);
     assert(numberOfDigits(BigInt("123_456_789_101_112_131_415_161")) == 24);
+    assert(numberOfDigits(BigInt("1_000_000_000_000_000_000_000_000")) == 25);
+    assert(numberOfDigits(BigInt("1_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000")) == 46);
+    assert(numberOfDigits(BigInt("1".byCodeUnit.chain('0'.repeat(60)))) == 61);
 }
 
 /*
