@@ -18,7 +18,7 @@ Subnormal Behavior | ❌
 Equals | ✓
 Compare | ✓
 Addition/Subtraction | ✓
-Multiply | ❌
+Multiply | ✓
 Divide | ❌
 Unary Plus/Minus/Increment/Decrement | ❌
 Cast Int/Float/Bool | ❌

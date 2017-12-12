@@ -186,30 +186,30 @@ package:
 
         Decimal!(hook) res;
 
-        if (sNaN || rhs.sNaN)
+        if (sNaN || rhs.sNaN || qNaN || rhs.qNaN)
         {
-            if (sign == 0)
-            {
-                res.sNaN = true;
-            }
-            else
-            {
-                res.sNaN = true;
-                res.sign = 1;
-            }
-
-            res.invalidOperation = true;
-            static if (hasInvalidOperationMethod)
-                res.hook.onInvalidOperation(this);
-            return res;
-        }
-
-        if (qNaN || rhs.qNaN)
-        {
-            if (sign == 1)
-                res.sign = 1;
-
             res.qNaN = true;
+            
+            // the sign of the first nan is simply propagated
+            if ((sNaN || qNaN))
+            {
+                res.sign = sign;
+            }
+            else if (rhs.sNaN || rhs.qNaN)
+            {
+                static if (op == "-")
+                    res.sign = 0 ? 1 : 0;
+                else
+                    res.sign = sign;
+            }
+
+            if (sNaN || rhs.sNaN)
+            {
+                res.invalidOperation = true;
+                static if (hasInvalidOperationMethod)
+                    res.hook.onInvalidOperation(this);
+            }
+            
             return res;
         }
 
@@ -605,7 +605,7 @@ public:
      * When the right hand side is a built-in numeric type, the default
      * hook `Abort` is used for its decimal representation.
      */
-    auto opBinary(string op, T)(T rhs) const if (op == "+" || op == "-")
+    auto opBinary(string op, T)(T rhs) const if (op == "+" || op == "-" || op == "*")
     {
         static if (isNumeric!T)
         {
@@ -615,6 +615,65 @@ public:
         else static if (op == "+" || op == "-")
         {
             return addImpl!(op, true)(rhs);
+        }
+        else static if (op == "*")
+        {
+            Decimal!(Hook) res;
+
+            if (sNaN || rhs.sNaN || qNaN || rhs.qNaN)
+            {
+                res.qNaN = true;
+                
+                // the sign of the first nan is simply propagated
+                if ((sNaN || qNaN))
+                {
+                    res.sign = sign;
+                }
+                else if (rhs.sNaN || rhs.qNaN)
+                {
+                    res.sign = rhs.sign;
+                }
+
+                if (sNaN || rhs.sNaN)
+                {
+                    res.invalidOperation = true;
+                    static if (hasInvalidOperationMethod)
+                        res.hook.onInvalidOperation(this);
+                }
+                
+                return res;
+            }
+
+            res.sign = sign ^ rhs.sign;
+
+            if (inf && rhs.inf)
+            {
+                res.inf = true;
+                return res;
+            }
+
+            if (inf || rhs.inf)
+            {
+                if ((inf && rhs.coefficient == 0) || (rhs.inf && coefficient == 0))
+                {
+                    res.qNaN = true;
+                    res.invalidOperation = true;
+                    static if (hasInvalidOperationMethod)
+                        res.hook.onInvalidOperation(this);
+                }
+                else
+                {
+                    res.inf = true;
+                }
+
+                return res;
+            }
+
+            res.coefficient = coefficient * rhs.coefficient;
+            res.exponent = exponent + rhs.exponent;
+
+            res.round();
+            return res;
         }
         else
         {
@@ -1047,11 +1106,11 @@ unittest
         Test("1", "0.00", "1.00"),
         Test("123.00", "3000.00", "3123.00"),
         Test("123.00", "3000.00", "3123.00"),
-        Test("sNaN", "sNaN", "sNaN", true),
-        Test("-sNaN", "sNaN", "-sNaN", true),
-        Test("NaN", "sNaN", "sNaN", true),
-        Test("sNaN", "1000", "sNaN", true),
-        Test("1000", "sNaN", "sNaN", true),
+        Test("sNaN", "sNaN", "NaN", true),
+        Test("-sNaN", "sNaN", "-NaN", true),
+        Test("NaN", "sNaN", "NaN", true),
+        Test("sNaN", "1000", "NaN", true),
+        Test("1000", "sNaN", "NaN", true),
         Test("1000", "NaN", "NaN"),
         Test("NaN", "NaN", "NaN"),
         Test("-NaN", "NaN", "-NaN"),
@@ -1085,11 +1144,11 @@ unittest
         Test("Inf", "NaN", "NaN"),
         Test("NaN", "NaN", "NaN"),
         Test("-NaN", "NaN", "-NaN"),
-        Test("sNaN", "0", "sNaN", true),
-        Test("sNaN", "-Inf", "sNaN", true),
-        Test("sNaN", "NaN", "sNaN", true),
-        Test("1000", "sNaN", "sNaN", true),
-        Test("-sNaN", "sNaN", "-sNaN", true),
+        Test("sNaN", "0", "NaN", true),
+        Test("sNaN", "-Inf", "NaN", true),
+        Test("sNaN", "NaN", "NaN", true),
+        Test("1000", "sNaN", "NaN", true),
+        Test("-sNaN", "sNaN", "-NaN", true),
         Test("Inf", "Inf", "NaN", true),
         Test("-Inf", "-Inf", "NaN", true),
     ];
@@ -1142,7 +1201,62 @@ unittest
     assert(v3.toString() == "0.00000000000000000000000000000000000000000000000005");
 }
 
+// multiplication
+@system
+unittest
+{
+    static struct Test
+    {
+        string val1;
+        string val2;
+        string expected;
+        bool invalidOperation;
+        bool rounded;
+    }
+
+    auto testValues = [
+        Test("0", "0", "0"),
+        Test("0", "-0", "-0"),
+        Test("-0", "0", "-0"),
+        Test("-0", "-0", "0"),
+        Test("-00.00", "0E-3", "-0.00000"),
+        Test("1.20", "3", "3.60"),
+        Test("7", "3", "21"),
+        Test("0.9", "0.8", "0.72"),
+        Test("0.9", "-0", "-0.0"),
+        Test("-1.20", "-2", "2.40"),
+        Test("123.45", "1e7", "1234500000"),
+        Test("12345", "10E-3", "123.450"),
+        Test("1.23456789", "1.00000000", "1.23456789", false, true),
+        Test("123456789", "10", "1234567890", false, true),
+        Test("Inf", "-Inf", "-Infinity"),
+        Test("-1000", "Inf", "-Infinity"),
+        Test("Inf", "1000", "Infinity"),
+        Test("0", "Inf", "NaN", true),
+        Test("-Inf", "-Inf", "Infinity"),
+        Test("Inf", "Inf", "Infinity"),
+        Test("NaN", "Inf", "NaN"),
+        Test("NaN", "-1000", "NaN"),
+        Test("-NaN", "-1000", "-NaN"),
+        Test("-NaN", "-NaN", "-NaN"),
+        Test("-NaN", "-Inf", "-NaN"),
+        Test("Inf", "-NaN", "-NaN"),
+        Test("sNaN", "1000", "NaN", true),
+        Test("1000", "sNaN", "NaN", true),
+        Test("-sNaN", "1000", "-NaN", true),
+    ];
+
+    foreach (el; testValues)
+    {
+        auto d = decimal!(NoOp)(el.val1) * decimal!(NoOp)(el.val2);
+        assert(d.toString() == el.expected);
+        assert(d.invalidOperation == el.invalidOperation);
+        assert(d.rounded == el.rounded);
+    }
+}
+
 // cmp and equals
+@system pure nothrow
 unittest
 {
     static struct Test
@@ -1207,7 +1321,7 @@ unittest
 }
 
 // to string
-unittest
+@system unittest
 {
     auto t = Decimal!()();
     t.sign = 0;
