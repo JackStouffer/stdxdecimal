@@ -99,6 +99,9 @@ package:
 
         int lastDigit;
 
+        // TODO: as soon as inexact == true, we can quit the
+        // loops and do a single division if ulong or just a
+        // few divisions if bigint, cuts down on total divisions
         static if (hook.roundingMode == Rounding.Down)
         {
             while (digits > hook.precision)
@@ -180,6 +183,9 @@ package:
     {
         import std.algorithm.comparison : min;
         import std.math : abs;
+
+        static if (!useBigInt)
+            import core.checkedint : mulu;
 
         static if (op == "-")
             rhs.sign = rhs.sign == 0 ? 1 : 0;
@@ -266,10 +272,9 @@ package:
                 }
                 else
                 {
-                    import core.checkedint : mulu;
                     alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
                     // the Overflow condition is only raised if exponents are incorrect,
-                    // has nothing to do with coefficients, so abort
+                    // so this is actually the condition "Insufficient Storage"
                     if (overflow)
                         assert(0, "Arithmetic operation failed due to coefficient overflow");
                 }
@@ -284,7 +289,6 @@ package:
                 }
                 else
                 {
-                    import core.checkedint : mulu;
                     rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
                     if (overflow)
                         assert(0, "Arithmetic operation failed due to coefficient overflow");
@@ -1379,7 +1383,7 @@ unittest
 }
 
 // test rounding
-// @safe pure nothrow
+@system
 unittest
 {
     import std.exception : assertThrown;

@@ -14,9 +14,9 @@ void main()
     auto t2 = real(5000000.0);
     auto t3 = BigInt(1000000);
     auto t4 = BigInt(5000000);
-    auto t5 = decimal(1000000);
+    auto t5 = decimal(10000.12);
     auto t6 = decimal(5000000);
-    auto t7 = decimal!(HighPrecision)(1000000);
+    auto t7 = decimal!(HighPrecision)(10000.12);
     auto t8 = decimal!(HighPrecision)(5000000);
 
     real rres;
@@ -40,6 +40,17 @@ void main()
     result2 = to!Duration(benchmark!(() => bres = t3 - t4)(5_000_000)[0]);
     result3 = to!Duration(benchmark!(() => dres = t5 - t6)(5_000_000)[0]);
     result4 = to!Duration(benchmark!(() => hres = t7 - t8)(5_000_000)[0]);
+
+    writeln("Baseline:", "\t", result1);
+    writeln("BigInt:", "\t\t", result2);
+    writeln("Decimal:", "\t", result3);
+    writeln("HighPrecision:", "\t", result4, "\n");
+
+    writeln("Multiplication (sum of 5M runs)");
+    result1 = to!Duration(benchmark!(() => rres = t1 * t2)(5_000_000)[0]);
+    result2 = to!Duration(benchmark!(() => bres = t3 * t4)(5_000_000)[0]);
+    result3 = to!Duration(benchmark!(() => dres = t5 * t6)(5_000_000)[0]);
+    result4 = to!Duration(benchmark!(() => hres = t7 * t8)(5_000_000)[0]);
 
     writeln("Baseline:", "\t", result1);
     writeln("BigInt:", "\t\t", result2);
