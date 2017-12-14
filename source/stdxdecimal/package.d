@@ -213,7 +213,7 @@ package:
             {
                 res.invalidOperation = true;
                 static if (hasInvalidOperationMethod)
-                    res.hook.onInvalidOperation(this);
+                    res.hook.onInvalidOperation(res);
             }
             
             return res;
@@ -609,7 +609,8 @@ public:
      * When the right hand side is a built-in numeric type, the default
      * hook `Abort` is used for its decimal representation.
      */
-    auto opBinary(string op, T)(T rhs) const if (op == "+" || op == "-" || op == "*")
+    auto opBinary(string op, T)(T rhs) const
+        if (op == "+" || op == "-" || op == "*" || op == "/")
     {
         static if (isNumeric!T)
         {
@@ -629,20 +630,16 @@ public:
                 res.qNaN = true;
                 
                 // the sign of the first nan is simply propagated
-                if ((sNaN || qNaN))
-                {
+                if (sNaN || qNaN)
                     res.sign = sign;
-                }
                 else if (rhs.sNaN || rhs.qNaN)
-                {
                     res.sign = rhs.sign;
-                }
 
                 if (sNaN || rhs.sNaN)
                 {
                     res.invalidOperation = true;
                     static if (hasInvalidOperationMethod)
-                        res.hook.onInvalidOperation(this);
+                        res.hook.onInvalidOperation(res);
                 }
                 
                 return res;
@@ -663,7 +660,7 @@ public:
                     res.qNaN = true;
                     res.invalidOperation = true;
                     static if (hasInvalidOperationMethod)
-                        res.hook.onInvalidOperation(this);
+                        res.hook.onInvalidOperation(res);
                 }
                 else
                 {
@@ -676,6 +673,118 @@ public:
             res.coefficient = coefficient * rhs.coefficient;
             res.exponent = exponent + rhs.exponent;
 
+            res.round();
+            return res;
+        }
+        else static if (op == "/")
+        {
+            Decimal!(Hook) res;
+
+            if (sNaN || rhs.sNaN || qNaN || rhs.qNaN)
+            {
+                res.qNaN = true;
+                
+                // the sign of the first nan is simply propagated
+                if (sNaN || qNaN)
+                    res.sign = sign;
+                else if (rhs.sNaN || rhs.qNaN)
+                    res.sign = rhs.sign;
+
+                if (sNaN || rhs.sNaN)
+                {
+                    res.invalidOperation = true;
+                    static if (hasInvalidOperationMethod)
+                        res.hook.onInvalidOperation(res);
+                }
+                
+                return res;
+            }
+
+            if (inf && rhs.inf)
+            {
+                res.qNaN = true;
+                res.invalidOperation = true;
+                static if (hasInvalidOperationMethod)
+                    res.hook.onInvalidOperation(res);
+                return res;
+            }
+
+            if (rhs.coefficient == 0 && coefficient == 0)
+            {
+                res.qNaN = true;
+                res.divisionByZero = true;
+
+                static if (hasDivisionByZeroMethod)
+                    res.hook.onDivisionByZero(res);
+
+                return res;
+            }
+
+            res.sign = sign ^ rhs.sign;
+
+            if (inf && !rhs.inf)
+            {
+                res.inf = true;
+                return res;
+            }
+
+            if (!inf && rhs.inf)
+                return res;
+
+            if (rhs.coefficient == 0 && coefficient != 0)
+            {
+                res.divisionByZero = true;
+                res.invalidOperation = true;
+                res.inf = true;
+
+                static if (hasDivisionByZeroMethod)
+                    res.hook.onDivisionByZero(res);
+                static if (hasInvalidOperationMethod)
+                    res.hook.onInvalidOperation(res);
+
+                return res;
+            }
+
+            int adjust;
+            Unqual!(typeof(coefficient)) dividend = coefficient;
+            Unqual!(typeof(rhs.coefficient)) divisor = rhs.coefficient;
+
+            if (dividend !=0)
+            {
+                while (dividend < divisor)
+                {
+                    dividend *= 10;
+                    ++adjust;
+                }
+
+                while (dividend >= divisor * 10)
+                {
+                    divisor *= 10;
+                    --adjust;
+                }
+
+                while (true)
+                {
+                    while (divisor <= dividend)
+                    {
+                        dividend -= divisor;
+                        ++res.coefficient;
+                    }
+
+                    if ((dividend == 0 && adjust >= 0) || numberOfDigits(res.coefficient) == hook.precision + 1)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        res.coefficient *= 10;
+                        dividend *= 10;
+                        ++adjust;
+                    }
+                }
+            }
+
+            res.exponent = exponent - (rhs.exponent + adjust);
             res.round();
             return res;
         }
@@ -1259,6 +1368,70 @@ unittest
     }
 }
 
+// division
+@system
+unittest
+{
+    import std.exception : assertThrown;
+
+    static struct Test
+    {
+        string val1;
+        string val2;
+        string expected;
+        bool divisionByZero;
+        bool invalidOperation;
+        bool inexact;
+        bool rounded;
+    }
+
+    auto testValues = [
+        Test("5", "2", "2.5"),
+        Test("1", "10", "0.1"),
+        Test("1", "4", "0.25"),
+        Test("12", "12", "1"),
+        Test("8.00", "2", "4.00"),
+        Test("1000", "100", "10"),
+        Test("2.40E+6", "2", "1200000"),
+        Test("2.4", "-1", "-2.4"),
+        Test("0.0", "1", "0.0"),
+        Test("0.0", "-1", "-0.0"),
+        Test("-0.0", "-1", "0.0"),
+        Test("1", "3", "0.333333333", false, false, true, true),
+        Test("2", "3", "0.666666667", false, false, true, true),
+        Test("0", "0", "NaN", true, false),
+        Test("1000", "0", "Infinity", true, true),
+        Test("-1000", "0", "-Infinity", true, true),
+        Test("Inf", "-Inf", "NaN", false, true),
+        Test("-Inf", "Inf", "NaN", false, true),
+        Test("Inf", "1000", "Infinity"),
+        Test("Inf", "-1000", "-Infinity"),
+        Test("1000", "Inf", "0"),
+        Test("1000", "-Inf", "-0"),
+        Test("Inf", "Inf", "NaN", false, true),
+        Test("-Inf", "-Inf", "NaN", false, true),
+        Test("NaN", "NaN", "NaN"),
+        Test("-NaN", "NaN", "-NaN"),
+        Test("NaN", "-Inf", "NaN"),
+        Test("-NaN", "Inf", "-NaN"),
+        Test("NaN", "-1000", "NaN"),
+        Test("Inf", "NaN", "NaN"),
+    ];
+
+    foreach (el; testValues)
+    {
+        auto d = decimal!(NoOp)(el.val1) / decimal!(NoOp)(el.val2);
+        assert(d.toString() == el.expected);
+        assert(d.divisionByZero == el.divisionByZero);
+        assert(d.invalidOperation == el.invalidOperation);
+        assert(d.inexact == el.inexact);
+        assert(d.rounded == el.rounded);
+    }
+
+    // test that the proper DivisionByZero function is called
+    assertThrown!DivisionByZero(() { cast(void) (decimal!(Throw)(1) / decimal(0)); } ());
+}
+
 // cmp and equals
 @system pure nothrow
 unittest
@@ -1674,25 +1847,25 @@ struct Throw
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
     {
-        throw new DivisionByZero();
+        throw new DivisionByZero("Result: " ~ d.toString());
     }
 
     ///
     static void onInvalidOperation(T)(T d) if (isInstanceOf!(Decimal, T))
     {
-        throw new InvalidOperation();
+        throw new InvalidOperation("Result: " ~ d.toString());
     }
 
     ///
     static void onOverflow(T)(T d) if (isInstanceOf!(Decimal, T))
     {
-        throw new Overflow();
+        throw new Overflow("Result: " ~ d.toString());
     }
 
     ///
     static void onUnderflow(T)(T d) if (isInstanceOf!(Decimal, T))
     {
-        throw new Underflow();
+        throw new Underflow("Result: " ~ d.toString());
     }
 }
 
@@ -1905,21 +2078,26 @@ private auto numberOfDigits(T)(T x)
         uint digits = 19;
         Unqual!(T) num = 10_000_000_000_000_000_000UL;
 
-        switch (len)
+        if (len == 3)
         {
-            case 4:
-                digits = 58;
-                num *= 10_000_000_000_000_000_000UL;
-                num *= 10_000_000_000_000_000_000UL;
-                num *= 10UL;
-                break;
-            case 3:
-                digits = 39;
-                num *= 10_000_000_000_000_000_000UL;
-                num *= 10;
-                break;
-            default:
-                break;
+            digits = 39;
+            num *= 10_000_000_000_000_000_000UL;
+            num *= 10;
+        }
+        else if (len == 4)
+        {
+            digits = 58;
+            num *= 10_000_000_000_000_000_000UL;
+            num *= 10_000_000_000_000_000_000UL;
+            num *= 10UL;
+        }
+        else if (len > 4)
+        {
+            digits = 78;
+            num *= 10_000_000_000_000_000_000UL;
+            num *= 10_000_000_000_000_000_000UL;
+            num *= 10_000_000_000_000_000_000UL;
+            num *= 10UL;
         }
 
         for (;; num *= 10, digits++)

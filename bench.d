@@ -57,6 +57,17 @@ void main()
     writeln("Decimal:", "\t", result3);
     writeln("HighPrecision:", "\t", result4, "\n");
 
+    writeln("Division (sum of 1M runs)");
+    result1 = to!Duration(benchmark!(() => rres = t1 / t2)(1_000_000)[0]);
+    result2 = to!Duration(benchmark!(() => bres = t3 / t4)(1_000_000)[0]);
+    result3 = to!Duration(benchmark!(() => dres = t5 / t6)(1_000_000)[0]);
+    result4 = to!Duration(benchmark!(() => hres = t7 / t8)(1_000_000)[0]);
+
+    writeln("Baseline:", "\t", result1);
+    writeln("BigInt:", "\t\t", result2);
+    writeln("Decimal:", "\t", result3);
+    writeln("HighPrecision:", "\t", result4, "\n");
+
     real[] arr1;
     BigInt[] arr2;
     Decimal!(Abort)[] arr3;
