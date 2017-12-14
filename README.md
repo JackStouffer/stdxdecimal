@@ -62,7 +62,7 @@ reduce | ❌
 Run on a 15", 2015 Macbook Pro
 
 Test | `real` | `BigInt` | `Decimal` (Precision 9) | `Decimal` (Precision 64) | Python `Decimal` | Python `Decimal` (64 Digits)
------------- | ------------- | ------------- | ------------- | ------------- |
+------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
 Addition (Sum 5M Runs) | 18 ms, 719 μs, and 9 hnsecs | 722 ms, 669 μs, and 9 hnsecs | 317 ms, 736 μs, and 8 hnsecs | 4 secs, 265 ms, and 9 hnsecs | 799 ms | 741 ms
 Subtraction (Sum 5M Runs) | 24 ms and 477 μs | 737 ms, 56 μs, and 7 hnsecs | 310 ms, 811 μs, and 7 hnsecs | 4 secs, 275 ms, 391 μs, and 8 hnsecs | 800 ms | 830 ms
 Multiplication (sum of 5M runs) | 18 ms, 397 μs, and 1 hnsec | 1 sec, 363 ms, and 219 μs | 477 ms, 119 μs, and 6 hnsecs | 7 secs, 39 ms, 998 μs, and 3 hnsecs | 695 ms | 1 sec 541 ms
