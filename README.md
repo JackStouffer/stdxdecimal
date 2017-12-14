@@ -25,6 +25,9 @@ void main()
     assert(d5.toString() == "12298.87");
 
     auto d6 = decimal!(HighPrecision)("1.000000000000000000000000000000000000000000000000001");
+    auto d7 = decimal!(HighPrecision)("1E-51");
+    auto d8 = d6 + d7;
+    assert(d8.toString() == "1.000000000000000000000000000000000000000000000000002");
 }
 ```
 
@@ -40,15 +43,16 @@ To engineering string | ❌
 All rounding types | ❌
 Overflow/Underflow Behavior | ❌
 Subnormal Behavior | ❌
+Clamping Behavior | ❌
 Equals | ✓
 Compare | ✓
 Addition | ✓
 Subtraction | ✓
 Multiply | ✓
 Divide | ✓
-opOpAssign +,-,*,/,^^ | ❌
-Unary Plus/Minus/Increment/Decrement | ❌
-Cast Int/Float/Bool | ❌
+opOpAssign `+`,`-`,`*`,`/`,`^^` | ❌
+Unary `+`,`-`,`++`,`--` | ❌
+opCast `int`,`real`,`bool` | ❌
 abs | ❌
 ln | ❌
 log10 | ❌
