@@ -15,3 +15,4 @@ stdxdecimal-test-*
 *.lst
 *.sublime-*
 bench
+trace.*
