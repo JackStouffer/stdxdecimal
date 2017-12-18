@@ -1,8 +1,8 @@
 /**
-    Adapted from the specification of the General Decimal Arithmetic.
-
-    This implementation is written for the D Programming Language
-    by Jack Stouffer and is licensed under the Boost Software License 1.0.
+ *   Adapted from the specification of the General Decimal Arithmetic.
+ *
+ *   This implementation is written for the D Programming Language
+ *   by Jack Stouffer and is licensed under the Boost Software License 1.0.
 */
 module stdxdecimal;
 
@@ -507,7 +507,6 @@ public:
             return;
         }
 
-        // all variables are declared here to make gotos compile
         immutable frontResult = codeUnits.front;
         bool sawDecimal = false;
         bool sawExponent = false;
@@ -856,12 +855,12 @@ public:
      * So, `-INF` is less than all numbers, `-NAN` is greater than `-INF` but
      * less than all other numbers, `NAN` is greater than `-NAN` but less than all other
      * numbers and inf is greater than all numbers. `-NAN` and `NAN` are equal to
-     * themselves. 
+     * themselves.
      *
      * Signaling NAN is an invalid operation, and will trigger the appropriate hook
      * method and always yield `-1`.
      */
-    int opCmp(T)(T d) // For some reason isInstanceOf refuses to work here
+    int opCmp(T)(T d) if (isNumeric!T || is(Unqual!T == Decimal))
     {
         static if (!isNumeric!T)
         {
@@ -961,9 +960,24 @@ public:
     }
 
     ///
-    bool opEquals(T)(T d)
+    bool opEquals(T)(T d) if (isNumeric!T || is(Unqual!T == Decimal))
     {
         return this.opCmp(d) == 0;
+    }
+
+    /**
+     * Convenience function to reset all flags to `false` at once
+     */
+    void resetFlags() @safe @nogc pure nothrow
+    {
+        clamped = false;
+        divisionByZero = false;
+        inexact = false;
+        invalidOperation = false;
+        overflow = false;
+        rounded = false;
+        subnormal = false;
+        underflow = false;
     }
 
     ///
@@ -1172,7 +1186,7 @@ unittest
 }
 
 // int construction
-@safe pure nothrow
+@safe pure nothrow @nogc
 unittest
 {
     static struct Test
@@ -1182,7 +1196,7 @@ unittest
         long coefficient;
     }
 
-    auto testValues = [
+    static immutable testValues = [
         Test(10, 0, 10),
         Test(-10, 1, 10),
         Test(-1000000, 1, 1000000),
@@ -1198,6 +1212,7 @@ unittest
 }
 
 // float construction
+@safe pure nothrow
 unittest
 {
     static struct Test
