@@ -46,9 +46,7 @@ package:
     // and 0 indicates that the number is zero or positive."
     bool sign;
     // quiet NaN
-    bool qNaN;
-    // signaling NaN
-    bool sNaN;
+    bool NaN;
     // Infinite
     bool inf;
 
@@ -243,28 +241,21 @@ package:
 
         Decimal!(hook) res;
 
-        if (sNaN || rhs.sNaN || qNaN || rhs.qNaN)
+        if (NaN || rhs.NaN)
         {
-            res.qNaN = true;
+            res.NaN = true;
             
             // the sign of the first nan is simply propagated
-            if ((sNaN || qNaN))
+            if (NaN)
             {
                 res.sign = sign;
             }
-            else if (rhs.sNaN || rhs.qNaN)
+            else if (rhs.NaN)
             {
                 static if (op == "-")
                     res.sign = 0 ? 1 : 0;
                 else
                     res.sign = sign;
-            }
-
-            if (sNaN || rhs.sNaN)
-            {
-                res.invalidOperation = true;
-                static if (hasInvalidOperationMethod)
-                    res.hook.onInvalidOperation(res);
             }
             
             return res;
@@ -286,7 +277,7 @@ package:
             }
 
             // -Inf + Inf makes no sense
-            res.qNaN = true;
+            res.NaN = true;
             res.invalidOperation = true;
             return res;
         }
@@ -450,7 +441,7 @@ public:
 
             if (isNaN(val))
             {
-                qNaN = true;
+                NaN = true;
                 sign = val == T.nan ? 0 : 1;
                 return;
             }
@@ -503,7 +494,7 @@ public:
 
         if (codeUnits.empty)
         {
-            qNaN = true;
+            NaN = true;
             return;
         }
 
@@ -538,16 +529,9 @@ public:
         }
 
         // having numbers after nan is valid in the spec
-        if (codeUnits.save.map!toLower.startsWith("qnan".byChar) ||
-            codeUnits.save.map!toLower.startsWith("nan".byChar))
+        if (codeUnits.save.map!toLower.startsWith("nan".byChar))
         {
-            qNaN = true;
-            return;
-        }
-
-        if (codeUnits.save.map!toLower.startsWith("snan".byChar))
-        {
-            sNaN = true;
+            NaN = true;
             return;
         }
 
@@ -639,7 +623,7 @@ public:
         return;
 
         Lerr:
-            qNaN = true;
+            NaN = true;
             coefficient = 0;
             exponent = 0;
 
@@ -675,23 +659,16 @@ public:
         {
             Decimal!(Hook) res;
 
-            if (sNaN || rhs.sNaN || qNaN || rhs.qNaN)
+            if (NaN || rhs.NaN)
             {
-                res.qNaN = true;
+                res.NaN = true;
                 
                 // the sign of the first nan is simply propagated
-                if (sNaN || qNaN)
+                if (NaN)
                     res.sign = sign;
-                else if (rhs.sNaN || rhs.qNaN)
+                else if (rhs.NaN)
                     res.sign = rhs.sign;
 
-                if (sNaN || rhs.sNaN)
-                {
-                    res.invalidOperation = true;
-                    static if (hasInvalidOperationMethod)
-                        res.hook.onInvalidOperation(res);
-                }
-                
                 return res;
             }
 
@@ -707,7 +684,7 @@ public:
             {
                 if ((inf && rhs.coefficient == 0) || (rhs.inf && coefficient == 0))
                 {
-                    res.qNaN = true;
+                    res.NaN = true;
                     res.invalidOperation = true;
                     static if (hasInvalidOperationMethod)
                         res.hook.onInvalidOperation(res);
@@ -730,29 +707,22 @@ public:
         {
             Decimal!(Hook) res;
 
-            if (sNaN || rhs.sNaN || qNaN || rhs.qNaN)
+            if (NaN || rhs.NaN)
             {
-                res.qNaN = true;
+                res.NaN = true;
                 
                 // the sign of the first nan is simply propagated
-                if (sNaN || qNaN)
+                if (NaN)
                     res.sign = sign;
-                else if (rhs.sNaN || rhs.qNaN)
+                else if (rhs.NaN)
                     res.sign = rhs.sign;
 
-                if (sNaN || rhs.sNaN)
-                {
-                    res.invalidOperation = true;
-                    static if (hasInvalidOperationMethod)
-                        res.hook.onInvalidOperation(res);
-                }
-                
                 return res;
             }
 
             if (inf && rhs.inf)
             {
-                res.qNaN = true;
+                res.NaN = true;
                 res.invalidOperation = true;
                 static if (hasInvalidOperationMethod)
                     res.hook.onInvalidOperation(res);
@@ -761,7 +731,7 @@ public:
 
             if (rhs.coefficient == 0 && coefficient == 0)
             {
-                res.qNaN = true;
+                res.NaN = true;
                 res.divisionByZero = true;
 
                 static if (hasDivisionByZeroMethod)
@@ -864,14 +834,6 @@ public:
     {
         static if (!isNumeric!T)
         {
-            if (sNaN || d.sNaN)
-            {
-                invalidOperation = true;
-                static if (hasInvalidOperationMethod)
-                    hook.onInvalidOperation(this);
-                return -1;
-            }
-
             if (inf)
             {
                 if (sign == 1 && (inf != d.inf || sign != d.sign))
@@ -882,7 +844,7 @@ public:
                     return 0;
             }
 
-            if (qNaN && d.qNaN)
+            if (NaN && d.NaN)
             {
                 if (sign == d.sign)
                     return 0;
@@ -892,9 +854,9 @@ public:
                 return 1;
             }
 
-            if (qNaN && !d.qNaN)
+            if (NaN && !d.NaN)
                 return -1;
-            if (!qNaN && d.qNaN)
+            if (!NaN && d.NaN)
                 return 1;
 
             Decimal!(Hook) lhs;
@@ -988,7 +950,6 @@ public:
      *
      * Special Values:
      *     Quiet Not A Number = `NaN`
-     *     Signal Not A Number = `sNaN`
      *     Infinite = `Infinity`
      *
      *     If negative, then all of above have `-` pre-pended
@@ -1020,15 +981,9 @@ public:
             return;
         }
 
-        if (qNaN)
+        if (NaN)
         {
             w.put("NaN");
-            return;
-        }
-
-        if (sNaN)
-        {
-            w.put("sNaN");
             return;
         }
 
@@ -1104,8 +1059,7 @@ unittest
     {
         string val;
         ubyte sign;
-        bool qNaN;
-        bool sNaN;
+        bool NaN;
         bool inf;
         bool invalid;
     }
@@ -1131,22 +1085,19 @@ unittest
         SpecialTest("+nan", 0, true, false, false),
         SpecialTest("-nan", 1, true, false, false),
         SpecialTest("-NAN", 1, true, false, false),
-        SpecialTest("Infinite", 0, true, false, false, true),
-        SpecialTest("infinity", 0, false, false, true),
-        SpecialTest("-INFINITY", 1, false, false, true),
-        SpecialTest("inf", 0, false, false, true),
-        SpecialTest("-inf", 1, false, false, true),
-        SpecialTest("snan", 0, false, true, false),
-        SpecialTest("-snan", 1, false, true, false),
-        SpecialTest("Jack", 0, true, false, false, true),
-        SpecialTest("+", 0, true, false, false, true),
-        SpecialTest("-", 0, true, false, false, true),
+        SpecialTest("Infinite", 0, true, false, true),
+        SpecialTest("infinity", 0, false, true, false),
+        SpecialTest("-INFINITY", 1, false, true, false),
+        SpecialTest("inf", 0, false, true, false),
+        SpecialTest("-inf", 1, false, true, false),
+        SpecialTest("Jack", 0, true, false, true),
+        SpecialTest("+", 0, true, false, true),
+        SpecialTest("-", 0, true, false, true),
         SpecialTest("nan0123", 0, true, false, false),
         SpecialTest("-nan0123", 1, true, false, false),
-        SpecialTest("snan0123", 0, false, true, false),
-        SpecialTest("12+3", 0, true, false, false, true),
-        SpecialTest("1.2.3", 0, true, false, false, true),
-        SpecialTest("123.0E+7E+7", 0, true, false, false, true),
+        SpecialTest("12+3", 0, true, false, true),
+        SpecialTest("1.2.3", 0, true, false, true),
+        SpecialTest("123.0E+7E+7", 0, true, false, true),
     ];
 
     foreach (el; nonspecialTestValues)
@@ -1160,8 +1111,7 @@ unittest
     foreach (el; specialTestValues)
     {
         auto d = Decimal!(NoOp)(el.val);
-        assert(d.qNaN == el.qNaN);
-        assert(d.sNaN == el.sNaN);
+        assert(d.NaN == el.NaN);
         assert(d.inf == el.inf);
         assert(d.invalidOperation == el.invalid);
     }
@@ -1227,8 +1177,7 @@ unittest
     {
         double val;
         ubyte sign;
-        bool qNaN;
-        bool sNaN;
+        bool NaN;
         bool inf;
     }
 
@@ -1243,10 +1192,10 @@ unittest
     ];
 
     auto specialTestValues = [
-        SpecialTest(float.nan, 0, true, false, false),
-        SpecialTest(-float.nan, 1, true, false, false),
-        SpecialTest(float.infinity, 0, false, false, true),
-        SpecialTest(-float.infinity, 1, false, false, true),
+        SpecialTest(float.nan, 0, true, false),
+        SpecialTest(-float.nan, 1, true, false),
+        SpecialTest(float.infinity, 0, false, true),
+        SpecialTest(-float.infinity, 1, false, true),
     ];
 
     foreach (el; nonspecialTestValues)
@@ -1260,8 +1209,7 @@ unittest
     foreach (el; specialTestValues)
     {
         auto d = Decimal!()(el.val);
-        assert(d.qNaN == el.qNaN);
-        assert(d.sNaN == el.sNaN);
+        assert(d.NaN == el.NaN);
         assert(d.inf == el.inf);
     }
 }
@@ -1291,11 +1239,6 @@ unittest
         Test("1", "0.00", "1.00"),
         Test("123.00", "3000.00", "3123.00"),
         Test("123.00", "3000.00", "3123.00"),
-        Test("sNaN", "sNaN", "NaN", true),
-        Test("-sNaN", "sNaN", "-NaN", true),
-        Test("NaN", "sNaN", "NaN", true),
-        Test("sNaN", "1000", "NaN", true),
-        Test("1000", "sNaN", "NaN", true),
         Test("1000", "NaN", "NaN"),
         Test("NaN", "NaN", "NaN"),
         Test("-NaN", "NaN", "-NaN"),
@@ -1329,11 +1272,6 @@ unittest
         Test("Inf", "NaN", "NaN"),
         Test("NaN", "NaN", "NaN"),
         Test("-NaN", "NaN", "-NaN"),
-        Test("sNaN", "0", "NaN", true),
-        Test("sNaN", "-Inf", "NaN", true),
-        Test("sNaN", "NaN", "NaN", true),
-        Test("1000", "sNaN", "NaN", true),
-        Test("-sNaN", "sNaN", "-NaN", true),
         Test("Inf", "Inf", "NaN", true),
         Test("-Inf", "-Inf", "NaN", true),
     ];
@@ -1425,10 +1363,7 @@ unittest
         Test("-NaN", "-1000", "-NaN"),
         Test("-NaN", "-NaN", "-NaN"),
         Test("-NaN", "-Inf", "-NaN"),
-        Test("Inf", "-NaN", "-NaN"),
-        Test("sNaN", "1000", "NaN", true),
-        Test("1000", "sNaN", "NaN", true),
-        Test("-sNaN", "1000", "-NaN", true),
+        Test("Inf", "-NaN", "-NaN")
     ];
 
     foreach (el; testValues)
@@ -1532,9 +1467,6 @@ unittest
         Test("NaN", "-NaN", 1),
         Test("-NaN", "-NaN", 0),
         Test("NaN", "NaN", 0),
-        Test("sNaN", "NaN", -1, true),
-        Test("sNaN", "-Inf", -1, true),
-        Test("sNaN", "100", -1, true),
         Test("0", "-0", 0),
         Test("2.1", "3", -1),
         Test("2.1", "2.1", 0),
