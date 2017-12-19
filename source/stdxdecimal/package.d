@@ -6,7 +6,8 @@
 */
 module stdxdecimal;
 
-import std.stdio;
+version(unittest) { import std.stdio; }
+import std.format : FormatSpec;
 import std.range.primitives;
 import std.traits;
 
@@ -40,13 +41,34 @@ struct Decimal(Hook = Abort)
         hook.precision > 1,
         "Hook.precision is too small (must be at least 2)"
     );
+    static assert(
+        hook.precision <= uint.max - 1,
+        "Hook.precision is too large (must be <= uint.max - 1)"
+    );
 
 package:
     // "1 indicates that the number is negative or is the negative zero
     // and 0 indicates that the number is zero or positive."
     bool sign;
-    bool NaN;
-    bool inf;
+    bool isNan;
+    bool isInf;
+
+    version (DigitalMars)
+    {
+        enum useBigInt = Hook.precision > 9;
+        // disabled for DMD as it's 10x slower than BigInts in some
+        // operations
+        enum useU128 = false;
+    }
+    else
+    {
+        // 19 because 9_999_999_999_999_999_999 ^^ 2
+        // can still fit in a uint128
+        enum useBigInt = Hook.precision > 19;
+        // 9 because 999_999_999 ^^ 2
+        // can still fit in a ulong
+        enum useU128 = Hook.precision > 9 && Hook.precision <= 19;
+    }
 
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
     static if (useBigInt)
@@ -72,23 +94,6 @@ package:
     enum hasOverflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onOverflow(d); });
     enum hasSubnormalMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onSubnormal(d); });
     enum hasUnderflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onUnderflow(d); });
-
-    version (DigitalMars)
-    {
-        enum useBigInt = Hook.precision > 9;
-        // disabled for DMD as it's 10x slower than BigInts in some
-        // operations
-        enum useU128 = false;
-    }
-    else
-    {
-        // 19 because 9_999_999_999_999_999_999 ^^ 2
-        // can still fit in a uint128
-        enum useBigInt = Hook.precision > 19;
-        // 9 because 999_999_999 ^^ 2
-        // can still fit in a ulong
-        enum useU128 = Hook.precision > 9 && Hook.precision <= 19;
-    }
 
     /*
         rounds the coefficient via `Hook`s rounding mode.
@@ -250,17 +255,17 @@ package:
         else
             rhsSign = rhs.sign;
 
-        if (NaN || rhs.NaN)
+        if (isNan || rhs.isNan)
         {
-            NaN = true;
-            inf = false;
+            isNan = true;
+            isInf = false;
 
-            // the sign of the first nan is simply propagated
-            if (NaN)
+            // the sign of the first isNan is simply propagated
+            if (isNan)
             {
                 sign = sign;
             }
-            else if (rhs.NaN)
+            else if (rhs.isNan)
             {
                 static if (op == "-")
                     sign = 0 ? 1 : 0;
@@ -273,24 +278,24 @@ package:
             return this;
         }
 
-        if (inf && rhs.inf)
+        if (isInf && rhs.isInf)
         {
             if (sign == 1 && rhsSign == 1)
             {
                 sign = 1;
-                inf = true;
+                isInf = true;
                 return this;
             }
 
             if (sign == 0 && rhsSign == 0)
             {
-                inf = true;
+                isInf = true;
                 return this;
             }
 
             // -Inf + Inf makes no sense
-            NaN = true;
-            inf = false;
+            isNan = true;
+            isInf = false;
             coefficient = 0;
             exponent = 0;
             sign = 0;
@@ -298,18 +303,18 @@ package:
             return this;
         }
 
-        if (inf)
+        if (isInf)
         {
-            inf = true;
+            isInf = true;
             sign = sign;
             coefficient = 0;
             exponent = 0;
             return this;
         }
 
-        if (rhs.inf)
+        if (rhs.isInf)
         {
-            inf = true;
+            isInf = true;
             sign = rhsSign;
             coefficient = 0;
             exponent = 0;
@@ -456,14 +461,14 @@ public:
 
             if (isInfinity(val))
             {
-                inf = true;
+                isInf = true;
                 sign = val < 0 ? 0 : 1;
                 return;
             }
 
             if (isNaN(val))
             {
-                NaN = true;
+                isNan = true;
                 sign = val == T.nan ? 0 : 1;
                 return;
             }
@@ -511,7 +516,7 @@ public:
 
         if (str.empty)
         {
-            NaN = true;
+            isNan = true;
             return;
         }
 
@@ -541,14 +546,14 @@ public:
         if (str.among!((a, b) => asciiCmp(a.save, b))
                ("inf", "infinity"))
         {
-            inf = true;
+            isInf = true;
             return;
         }
 
         // having numbers after nan is valid in the spec
         if (str.save.map!toLower.startsWith("nan".byChar))
         {
-            NaN = true;
+            isNan = true;
             return;
         }
 
@@ -640,7 +645,7 @@ public:
         return;
 
         Lerr:
-            NaN = true;
+            isNan = true;
             coefficient = 0;
             exponent = 0;
 
@@ -691,16 +696,16 @@ public:
         }
         else static if (op == "*")
         {
-            if (NaN || rhs.NaN)
+            if (isNan || rhs.isNan)
             {
                 // the sign of the first nan is simply propagated
-                if (NaN)
+                if (isNan)
                     sign = sign;
-                else if (rhs.NaN)
+                else if (rhs.isNan)
                     sign = rhs.sign;
 
-                NaN = true;
-                inf = false;
+                isNan = true;
+                isInf = false;
                 coefficient = 0;
                 exponent = 0;
 
@@ -709,19 +714,19 @@ public:
 
             sign = sign ^ rhs.sign;
 
-            if (inf && rhs.inf)
+            if (isInf && rhs.isInf)
             {
-                inf = true;
+                isInf = true;
                 coefficient = 0;
                 exponent = 0;
                 return this;
             }
 
-            if (inf || rhs.inf)
+            if (isInf || rhs.isInf)
             {
-                if ((inf && rhs.coefficient == 0) || (rhs.inf && coefficient == 0))
+                if ((isInf && rhs.coefficient == 0) || (rhs.isInf && coefficient == 0))
                 {
-                    NaN = true;
+                    isNan = true;
                     coefficient = 0;
                     exponent = 0;
                     invalidOperation = true;
@@ -730,7 +735,7 @@ public:
                 }
                 else
                 {
-                    inf = true;
+                    isInf = true;
                     coefficient = 0;
                     exponent = 0;
                 }
@@ -746,26 +751,26 @@ public:
         }
         else static if (op == "/")
         {
-            if (NaN || rhs.NaN)
+            if (isNan || rhs.isNan)
             {
                 // the sign of the first nan is simply propagated
-                if (NaN)
+                if (isNan)
                     sign = sign;
-                else if (rhs.NaN)
+                else if (rhs.isNan)
                     sign = rhs.sign;
 
-                inf = false;
-                NaN = true;
+                isInf = false;
+                isNan = true;
                 coefficient = 0;
                 exponent = 0;
 
                 return this;
             }
 
-            if (inf && rhs.inf)
+            if (isInf && rhs.isInf)
             {
-                inf = false;
-                NaN = true;
+                isInf = false;
+                isNan = true;
                 coefficient = 0;
                 exponent = 0;
                 sign = 0;
@@ -777,7 +782,7 @@ public:
 
             if (rhs.coefficient == 0 && coefficient == 0)
             {
-                NaN = true;
+                isNan = true;
                 coefficient = 0;
                 exponent = 0;
                 divisionByZero = true;
@@ -790,15 +795,15 @@ public:
 
             sign = sign ^ rhs.sign;
 
-            if (inf && !rhs.inf)
+            if (isInf && !rhs.isInf)
             {
-                inf = true;
+                isInf = true;
                 coefficient = 0;
                 exponent = 0;
                 return this;
             }
 
-            if (!inf && rhs.inf)
+            if (!isInf && rhs.isInf)
             {
                 coefficient = 0;
                 exponent = 0;
@@ -809,7 +814,7 @@ public:
             {
                 divisionByZero = true;
                 invalidOperation = true;
-                inf = true;
+                isInf = true;
 
                 static if (hasDivisionByZeroMethod)
                     hook.onDivisionByZero(this);
@@ -886,21 +891,21 @@ public:
      * Signaling NAN is an invalid operation, and will trigger the appropriate hook
      * method and always yield `-1`.
      */
-    int opCmp(T)(T d) if (isNumeric!T || is(Unqual!T == Decimal))
+    int opCmp(T)(T d) const if (isNumeric!T || is(Unqual!T == Decimal))
     {
         static if (!isNumeric!T)
         {
-            if (inf)
+            if (isInf)
             {
-                if (sign == 1 && (inf != d.inf || sign != d.sign))
+                if (sign == 1 && (isInf != d.isInf || sign != d.sign))
                     return -1;
-                if (sign == 0 && (inf != d.inf || sign != d.sign))
+                if (sign == 0 && (isInf != d.isInf || sign != d.sign))
                     return 1;
-                if (d.inf && sign == d.sign)
+                if (d.isInf && sign == d.sign)
                     return 0;
             }
 
-            if (NaN && d.NaN)
+            if (isNan && d.isNan)
             {
                 if (sign == d.sign)
                     return 0;
@@ -910,9 +915,9 @@ public:
                 return 1;
             }
 
-            if (NaN && !d.NaN)
+            if (isNan && !d.isNan)
                 return -1;
-            if (!NaN && d.NaN)
+            if (!isNan && d.isNan)
                 return 1;
 
             Decimal!(Hook) lhs;
@@ -959,7 +964,7 @@ public:
                 lhs.exponent = exponent;
             }
 
-            auto res = lhs.addImpl!("-", false)(d);
+            const res = lhs.addImpl!("-", false)(d);
 
             if (res.sign == 0)
             {
@@ -988,7 +993,7 @@ public:
     }
 
     ///
-    bool opEquals(T)(T d) if (isNumeric!T || is(Unqual!T == Decimal))
+    bool opEquals(T)(T d) const if (isNumeric!T || is(Unqual!T == Decimal))
     {
         return this.opCmp(d) == 0;
     }
@@ -1008,14 +1013,15 @@ public:
         underflow = false;
     }
 
+    /// Returns: A mutable copy of this `Decimal`. Also copies current flags.
     Decimal!(Hook) dup()() const
     {
         Unqual!(typeof(this)) res;
         res.coefficient = coefficient;
         res.exponent = exponent;
         res.sign = sign;
-        res.NaN = NaN;
-        res.inf = inf;
+        res.isNan = isNan;
+        res.isInf = isInf;
         res.clamped = clamped;
         res.divisionByZero = divisionByZero;
         res.inexact = inexact;
@@ -1028,9 +1034,38 @@ public:
         return res;
     }
 
+    /// Returns: An immutable copy of this `Decimal`. Also copies current flags.
     immutable(Decimal!(Hook)) idup()() const
     {
         return dup!()();
+    }
+
+    /// Returns: If this decimal represents a positive or negative NaN
+    bool isNaN() const @property @safe @nogc pure nothrow
+    {
+        return isNan;
+    }
+
+    /// Returns: If this decimal represents positive or negative infinity
+    bool isInfinity() const @property @safe @nogc pure nothrow
+    {
+        return isInf;
+    }
+
+    /// Returns: A decimal representing a positive NaN
+    static Decimal!(Hook) nan()() @property
+    {
+        Decimal!(Hook) res;
+        res.isNan = true;
+        return res;
+    }
+
+    /// Returns: A decimal representing positive Infinity
+    static Decimal!(Hook) infinity()() @property
+    {
+        Decimal!(Hook) res;
+        res.isInf = true;
+        return res;
     }
 
     ///
@@ -1066,13 +1101,13 @@ public:
         if (sign == 1)
             w.put('-');
 
-        if (inf)
+        if (isInf)
         {
             w.put("Infinity");
             return;
         }
 
-        if (NaN)
+        if (isNan)
         {
             w.put("NaN");
             return;
@@ -1150,8 +1185,8 @@ unittest
     {
         string val;
         ubyte sign;
-        bool NaN;
-        bool inf;
+        bool isNan;
+        bool isInf;
         bool invalid;
     }
 
@@ -1163,11 +1198,11 @@ unittest
         Test("0E+7", 0, 0, 7),
         Test("-0E-7", 1, 0, -7),
         Test("1.23E3", 0, 123, 1),
-        Test("0001.0000", 0, 10000, -4),
-        Test("-10.0004", 1, 100004, -4),
+        Test("0001.0000", 0, 10_000, -4),
+        Test("-10.0004", 1, 100_004, -4),
         Test("+15", 0, 15, 0),
         Test("-15", 1, 15, 0),
-        Test("1234.5E-4", 0, 12345, -5),
+        Test("1234.5E-4", 0, 12_345, -5),
         Test("30.5E10", 0, 305, 9) 
     ];
 
@@ -1202,8 +1237,8 @@ unittest
     foreach (el; specialTestValues)
     {
         auto d = Decimal!(NoOp)(el.val);
-        assert(d.NaN == el.NaN);
-        assert(d.inf == el.inf);
+        assert(d.isNan == el.isNan);
+        assert(d.isInf == el.isInf);
         assert(d.invalidOperation == el.invalid);
     }
 }
@@ -1240,7 +1275,7 @@ unittest
     static immutable testValues = [
         Test(10, 0, 10),
         Test(-10, 1, 10),
-        Test(-1000000, 1, 1000000),
+        Test(-1_000_000, 1, 1_000_000),
         Test(-147_483_648, 1, 147_483_648),
     ];
 
@@ -1268,8 +1303,8 @@ unittest
     {
         double val;
         ubyte sign;
-        bool NaN;
-        bool inf;
+        bool isNan;
+        bool isInf;
     }
 
     auto nonspecialTestValues = [
@@ -1300,9 +1335,20 @@ unittest
     foreach (el; specialTestValues)
     {
         auto d = Decimal!()(el.val);
-        assert(d.NaN == el.NaN);
-        assert(d.inf == el.inf);
+        assert(d.isNan == el.isNan);
+        assert(d.isInf == el.isInf);
     }
+}
+
+// static ctors
+@safe pure nothrow
+unittest
+{
+    // TODO add max and min
+    auto d1 = Decimal!().nan;
+    assert(d1.isNan == true);
+    auto d2 = Decimal!().infinity;
+    assert(d2.isInf == true);
 }
 
 // addition and subtraction
@@ -1933,9 +1979,11 @@ struct Abort
  * due to implementation constraints. Only use this if you really need
  * data that precise
  */
-static struct HighPrecision
+struct HighPrecision
 {
+    ///
     enum Rounding roundingMode = Rounding.HalfUp;
+    ///
     enum uint precision = 64;
 
     ///
@@ -2350,16 +2398,14 @@ template isEnum(X...) if (X.length == 1)
   The following code is from the GFM library in D, which was provided under a
   public domain license https://github.com/d-gamedev-team/gfm
  */
-import std.traits,
-       std.ascii;
-import std.format : FormatSpec;
+import std.ascii;
 
 /// Wide signed integer.
 /// Params:
 ///    bits = number of bits, must be a power of 2.
 template wideint(int bits)
 {
-    alias integer!(true, bits) wideint;
+    alias wideint = integer!(true, bits);
 }
 
 /// Wide unsigned integer.
@@ -2367,16 +2413,16 @@ template wideint(int bits)
 ///    bits = number of bits, must be a power of 2.
 template uwideint(int bits)
 {
-    alias integer!(false, bits) uwideint;
+    alias uwideint = integer!(false, bits);
 }
 
 // Some predefined integers (any power of 2 greater than 128 would work)
 
-alias wideint!128 int128; // cent and ucent!
-alias uwideint!128 uint128;
+alias int128 = wideint!128; // cent and ucent!
+alias uint128 = uwideint!128;
 
-alias wideint!256 int256;
-alias uwideint!256 uint256;
+alias int256 = wideint!256;
+alias uint256 = uwideint!256;
 
 /// Use this template to get an arbitrary sized integer type.
 private template integer(bool signed, int bits)
@@ -2387,34 +2433,34 @@ private template integer(bool signed, int bits)
     static if (bits == 8)
     {
         static if (signed)
-            alias byte integer;
+            alias integer = byte;
         else
-            alias ubyte integer;
+            alias integer = ubyte;
     }
     else static if (bits == 16)
     {
         static if (signed)
-            alias short integer;
+            alias integer = short;
         else
-            alias ushort integer;
+            alias integer = ushort;
     }
     else static if (bits == 32)
     {
         static if (signed)
-            alias int integer;
+            alias integer = int;
         else
-            alias uint integer;
+            alias integer = uint;
     }
     else static if (bits == 64)
     {
         static if (signed)
-            alias long integer;
+            alias integer = long;
         else
-            alias ulong integer;
+            alias integer = ulong;
     }
     else
     {
-        alias wideIntImpl!(signed, bits) integer;
+        alias integer = wideIntImpl!(signed, bits);
     }
 }
 
@@ -2430,25 +2476,25 @@ struct wideIntImpl(bool signed, int bits)
     static assert(bits >= 128);
     private
     {
-        alias wideIntImpl self;
+        alias self = wideIntImpl;
 
         template isSelf(T)
         {
             enum bool isSelf = is(Unqual!T == self);
         }
 
-        alias integer!(true, bits/2) sub_int_t;   // signed bits/2 integer
-        alias integer!(false, bits/2) sub_uint_t; // unsigned bits/2 integer
+        alias sub_int_t = integer!(true, bits/2);   // signed bits/2 integer
+        alias sub_uint_t = integer!(false, bits/2); // unsigned bits/2 integer
 
-        alias integer!(true, bits/4) sub_sub_int_t;   // signed bits/4 integer
-        alias integer!(false, bits/4) sub_sub_uint_t; // unsigned bits/4 integer
+        alias sub_sub_int_t = integer!(true, bits/4);   // signed bits/4 integer
+        alias sub_sub_uint_t = integer!(false, bits/4); // unsigned bits/4 integer
 
         static if(signed)
-            alias sub_int_t hi_t; // hi_t has same signedness as the whole struct
+            alias hi_t = sub_int_t; // hi_t has same signedness as the whole struct
         else
-            alias sub_uint_t hi_t;
+            alias hi_t = sub_uint_t;
 
-        alias sub_uint_t low_t;   // low_t is always unsigned
+        alias low_t = sub_uint_t;   // low_t is always unsigned
 
         enum _bits = bits,
              _signed = signed;
@@ -2463,8 +2509,7 @@ struct wideIntImpl(bool signed, int bits)
     // Private functions used by the `literal` template.
     private static bool isValidDigitString(string digits)
     {
-        import std.algorithm : startsWith;
-        import std.ascii : isDigit;
+        import std.algorithm.searching : startsWith;
 
         if (digits.startsWith("0x"))
         {
@@ -2492,8 +2537,7 @@ struct wideIntImpl(bool signed, int bits)
 
     private static typeof(this) literalImpl(string digits)
     {
-        import std.algorithm : startsWith;
-        import std.ascii : isDigit;
+        import std.algorithm.searching : startsWith;
 
         typeof(this) value = 0;
         if (digits.startsWith("0x"))
@@ -2651,8 +2695,6 @@ struct wideIntImpl(bool signed, int bits)
         }
         else // default to decimal
         {
-            import std.algorithm : reverse;
-
             if (this == 0)
             {
                 sink("0");
@@ -2935,7 +2977,7 @@ template isWideIntInstantiation(U)
     enum bool isWideIntInstantiation = is(typeof(isWideInt(U.init)));
 }
 
-@nogc public wideIntImpl!(signed, bits) abs(bool signed, int bits)(wideIntImpl!(signed, bits) x) pure nothrow
+@nogc wideIntImpl!(signed, bits) abs(bool signed, int bits)(wideIntImpl!(signed, bits) x) pure nothrow
 {
     if(x >= 0)
         return x;
@@ -2943,10 +2985,10 @@ template isWideIntInstantiation(U)
         return -x;
 }
 
-private struct Internals(int bits)
+struct Internals(int bits)
 {
-    alias wideIntImpl!(true, bits) wint_t;
-    alias wideIntImpl!(false, bits) uwint_t;
+    alias wint_t = wideIntImpl!(true, bits);
+    alias uwint_t = wideIntImpl!(false, bits);
 
     @nogc static void unsignedDivide(uwint_t dividend, uwint_t divisor,
                                      out uwint_t quotient, out uwint_t remainder) pure nothrow
