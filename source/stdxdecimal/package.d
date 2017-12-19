@@ -481,7 +481,7 @@ public:
     /**
      * implements spec to-number
      */
-    this(S)(S str) if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S)
+    this(S)(S str) if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S && !isSomeString!S)
     {
         import std.algorithm.comparison : among, equal;
         import std.algorithm.iteration : filter, map;
@@ -500,18 +500,13 @@ public:
             return isDigit(a) || a == 'E' || a == 'e' || a == '-' || a == '+' || a == '.';
         }
 
-        static if (isSomeString!S)
-            auto codeUnits = str.byCodeUnit;
-        else
-            alias codeUnits = str;
-
-        if (codeUnits.empty)
+        if (str.empty)
         {
             NaN = true;
             return;
         }
 
-        immutable frontResult = codeUnits.front;
+        immutable frontResult = str.front;
         bool sawDecimal = false;
         bool sawExponent = false;
         bool sawExponentSign = false;
@@ -520,21 +515,21 @@ public:
 
         if (frontResult == '+')
         {
-            codeUnits.popFront;
+            str.popFront;
         }
         else if (frontResult == '-')
         {
             sign = 1;
-            codeUnits.popFront;
+            str.popFront;
         }
 
-        if (codeUnits.empty)
+        if (str.empty)
         {
             sign = 0;
             goto Lerr;
         }
 
-        if (codeUnits.among!((a, b) => asciiCmp(a.save, b))
+        if (str.among!((a, b) => asciiCmp(a.save, b))
                ("inf", "infinity"))
         {
             inf = true;
@@ -542,15 +537,15 @@ public:
         }
 
         // having numbers after nan is valid in the spec
-        if (codeUnits.save.map!toLower.startsWith("nan".byChar))
+        if (str.save.map!toLower.startsWith("nan".byChar))
         {
             NaN = true;
             return;
         }
 
-        for (; !codeUnits.empty; codeUnits.popFront)
+        for (; !str.empty; str.popFront)
         {
-            auto digit = codeUnits.front;
+            auto digit = str.front;
 
             if (!charCheck(digit))
                 goto Lerr;
@@ -568,16 +563,16 @@ public:
 
                 if (sawExponent)
                 {
-                    while (!codeUnits.empty)
+                    while (!str.empty)
                     {
-                        if (!isDigit(codeUnits.front))
+                        if (!isDigit(str.front))
                             goto Lerr;
 
-                        sciExponent += cast(uint) (codeUnits.front - '0');
-                        if (!codeUnits.empty)
+                        sciExponent += cast(uint) (str.front - '0');
+                        if (!str.empty)
                         {
-                            codeUnits.popFront;
-                            if (!codeUnits.empty)
+                            str.popFront;
+                            if (!str.empty)
                                 sciExponent *= 10;
                         }
                     }
@@ -587,7 +582,7 @@ public:
 
                     exponent += sciExponent;
 
-                    if (codeUnits.empty)
+                    if (str.empty)
                     {
                         round();
                         return;
@@ -645,6 +640,15 @@ public:
                 hook.onInvalidOperation(this);
 
             return;
+    }
+
+    /// ditto
+    this(S)(S str) pure if (isSomeString!S)
+    {
+        // hack to allow pure annotation for immutable construction
+        // see Issue 17330
+        import std.utf : byCodeUnit;
+        this(str.byCodeUnit);
     }
 
     /**
