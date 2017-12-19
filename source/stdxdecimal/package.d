@@ -45,9 +45,7 @@ package:
     // "1 indicates that the number is negative or is the negative zero
     // and 0 indicates that the number is zero or positive."
     bool sign;
-    // quiet NaN
     bool NaN;
-    // Infinite
     bool inf;
 
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
@@ -228,7 +226,7 @@ package:
         Separated into its own function for readability as well as
         allowing opCmp to skip the rounding step
      */
-    auto addImpl(string op, bool round, T)(T rhs) const
+    ref Decimal!(Hook) addImpl(string op, bool doRound, T)(const auto ref T rhs)
     {
         import std.algorithm.comparison : min;
         import std.math : abs;
@@ -236,64 +234,77 @@ package:
         static if (!useBigInt)
             import core.checkedint : mulu;
 
-        static if (op == "-")
-            rhs.sign = rhs.sign == 0 ? 1 : 0;
+        bool rhsSign;
 
-        Decimal!(hook) res;
+        static if (op == "-")
+            rhsSign = rhs.sign == 0 ? 1 : 0;
+        else
+            rhsSign = rhs.sign;
 
         if (NaN || rhs.NaN)
         {
-            res.NaN = true;
-            
+            NaN = true;
+            inf = false;
+
             // the sign of the first nan is simply propagated
             if (NaN)
             {
-                res.sign = sign;
+                sign = sign;
             }
             else if (rhs.NaN)
             {
                 static if (op == "-")
-                    res.sign = 0 ? 1 : 0;
+                    sign = 0 ? 1 : 0;
                 else
-                    res.sign = sign;
+                    sign = sign;
             }
-            
-            return res;
+
+            coefficient = 0;
+            exponent = 0;
+            return this;
         }
 
         if (inf && rhs.inf)
         {
-            if (sign == 1 && rhs.sign == 1)
+            if (sign == 1 && rhsSign == 1)
             {
-                res.sign = 1;
-                res.inf = true;
-                return res;
+                sign = 1;
+                inf = true;
+                return this;
             }
 
-            if (sign == 0 && rhs.sign == 0)
+            if (sign == 0 && rhsSign == 0)
             {
-                res.inf = true;
-                return res;
+                inf = true;
+                return this;
             }
 
             // -Inf + Inf makes no sense
-            res.NaN = true;
-            res.invalidOperation = true;
-            return res;
+            NaN = true;
+            inf = false;
+            coefficient = 0;
+            exponent = 0;
+            sign = 0;
+            invalidOperation = true;
+            return this;
         }
 
         if (inf)
         {
-            res.inf = true;
-            res.sign = sign;
-            return res;
+            inf = true;
+            sign = sign;
+            coefficient = 0;
+            exponent = 0;
+            return this;
         }
 
         if (rhs.inf)
         {
-            res.inf = true;
-            res.sign = rhs.sign;
-            return res;
+            inf = true;
+            sign = rhsSign;
+            coefficient = 0;
+            exponent = 0;
+            return this;
         }
 
         Unqual!(typeof(coefficient)) alignedCoefficient = coefficient;
@@ -340,46 +351,48 @@ package:
 
         // If the signs of the operands differ then the smaller aligned coefficient
         // is subtracted from the larger; otherwise they are added.
-        if (sign == rhs.sign)
+        if (sign == rhsSign)
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
-                res.coefficient = alignedCoefficient + rhsAlignedCoefficient;
+                coefficient = alignedCoefficient + rhsAlignedCoefficient;
             else
-                res.coefficient = rhsAlignedCoefficient + alignedCoefficient;
+                coefficient = rhsAlignedCoefficient + alignedCoefficient;
         }
         else
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
-                res.coefficient = alignedCoefficient - rhsAlignedCoefficient;
+                coefficient = alignedCoefficient - rhsAlignedCoefficient;
             else
-                res.coefficient = rhsAlignedCoefficient - alignedCoefficient;
+                coefficient = rhsAlignedCoefficient - alignedCoefficient;
         }
 
-        res.exponent = min(exponent, rhs.exponent);
+        exponent = min(exponent, rhs.exponent);
 
-        if (res.coefficient != 0)
+        if (coefficient != 0)
         {
             // the sign of the result is the sign of the operand having
             // the larger absolute value.
             if (alignedCoefficient >= rhsAlignedCoefficient)
-                res.sign = sign;
+                sign = sign;
             else
-                res.sign = rhs.sign;
+                sign = rhsSign;
         }
         else
         {
-            if (sign == 1 && rhs.sign == 1)
-                res.sign = 1;
+            if (sign == 1 && rhsSign == 1)
+                sign = 1;
+            else
+                sign = 0;
 
             static if (hook.roundingMode == Rounding.Floor)
-                if (sign != rhs.sign)
-                    res.sign = 1;
+                if (sign != rhsSign)
+                    sign = 1;
         }
 
-        static if (round)
-            res.round();
+        static if (doRound)
+            round();
 
-        return res;
+        return this;
     }
 
 public:
@@ -646,10 +659,18 @@ public:
     auto opBinary(string op, T)(T rhs) const
         if (op == "+" || op == "-" || op == "*" || op == "/")
     {
+        auto lhs = dup();
+        return lhs.opOpAssign!(op, T)(rhs);
+    }
+
+    /// ditto
+    ref Decimal!(Hook) opOpAssign(string op, T)(const auto ref T rhs)
+        if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
         static if (isNumeric!T)
         {
             auto temp = decimal(rhs);
-            return mixin("this " ~ op ~ " temp");
+            return mixin("this " ~ op ~ "= temp");
         }
         else static if (op == "+" || op == "-")
         {
@@ -657,115 +678,136 @@ public:
         }
         else static if (op == "*")
         {
-            Decimal!(Hook) res;
-
             if (NaN || rhs.NaN)
             {
-                res.NaN = true;
-                
                 // the sign of the first nan is simply propagated
                 if (NaN)
-                    res.sign = sign;
+                    sign = sign;
                 else if (rhs.NaN)
-                    res.sign = rhs.sign;
+                    sign = rhs.sign;
 
-                return res;
+                NaN = true;
+                inf = false;
+                coefficient = 0;
+                exponent = 0;
+
+                return this;
             }
 
-            res.sign = sign ^ rhs.sign;
+            sign = sign ^ rhs.sign;
 
             if (inf && rhs.inf)
             {
-                res.inf = true;
-                return res;
+                inf = true;
+                coefficient = 0;
+                exponent = 0;
+                return this;
             }
 
             if (inf || rhs.inf)
             {
                 if ((inf && rhs.coefficient == 0) || (rhs.inf && coefficient == 0))
                 {
-                    res.NaN = true;
-                    res.invalidOperation = true;
+                    NaN = true;
+                    coefficient = 0;
+                    exponent = 0;
+                    invalidOperation = true;
                     static if (hasInvalidOperationMethod)
-                        res.hook.onInvalidOperation(res);
+                        hook.onInvalidOperation(this);
                 }
                 else
                 {
-                    res.inf = true;
+                    inf = true;
+                    coefficient = 0;
+                    exponent = 0;
                 }
 
-                return res;
+                return this;
             }
 
-            res.coefficient = coefficient * rhs.coefficient;
-            res.exponent = exponent + rhs.exponent;
+            coefficient = coefficient * rhs.coefficient;
+            exponent = exponent + rhs.exponent;
 
-            res.round();
-            return res;
+            round();
+            return this;
         }
         else static if (op == "/")
         {
-            Decimal!(Hook) res;
-
             if (NaN || rhs.NaN)
             {
-                res.NaN = true;
-                
                 // the sign of the first nan is simply propagated
                 if (NaN)
-                    res.sign = sign;
+                    sign = sign;
                 else if (rhs.NaN)
-                    res.sign = rhs.sign;
+                    sign = rhs.sign;
 
-                return res;
+                inf = false;
+                NaN = true;
+                coefficient = 0;
+                exponent = 0;
+
+                return this;
             }
 
             if (inf && rhs.inf)
             {
-                res.NaN = true;
-                res.invalidOperation = true;
+                inf = false;
+                NaN = true;
+                coefficient = 0;
+                exponent = 0;
+                sign = 0;
+                invalidOperation = true;
                 static if (hasInvalidOperationMethod)
-                    res.hook.onInvalidOperation(res);
-                return res;
+                    hook.onInvalidOperation(this);
+                return this;
             }
 
             if (rhs.coefficient == 0 && coefficient == 0)
             {
-                res.NaN = true;
-                res.divisionByZero = true;
+                NaN = true;
+                coefficient = 0;
+                exponent = 0;
+                divisionByZero = true;
 
                 static if (hasDivisionByZeroMethod)
-                    res.hook.onDivisionByZero(res);
+                    hook.onDivisionByZero(this);
 
-                return res;
+                return this;
             }
 
-            res.sign = sign ^ rhs.sign;
+            sign = sign ^ rhs.sign;
 
             if (inf && !rhs.inf)
             {
-                res.inf = true;
-                return res;
+                inf = true;
+                coefficient = 0;
+                exponent = 0;
+                return this;
             }
 
             if (!inf && rhs.inf)
-                return res;
+            {
+                coefficient = 0;
+                exponent = 0;
+                return this;
+            }
 
             if (rhs.coefficient == 0 && coefficient != 0)
             {
-                res.divisionByZero = true;
-                res.invalidOperation = true;
-                res.inf = true;
+                divisionByZero = true;
+                invalidOperation = true;
+                inf = true;
 
                 static if (hasDivisionByZeroMethod)
-                    res.hook.onDivisionByZero(res);
+                    hook.onDivisionByZero(this);
                 static if (hasInvalidOperationMethod)
-                    res.hook.onInvalidOperation(res);
+                    hook.onInvalidOperation(this);
 
-                return res;
+                return this;
             }
 
             int adjust;
+            Unqual!(typeof(coefficient)) res;
             Unqual!(typeof(coefficient)) dividend = coefficient;
             Unqual!(typeof(rhs.coefficient)) divisor = rhs.coefficient;
 
@@ -788,25 +830,26 @@ public:
                     while (divisor <= dividend)
                     {
                         dividend -= divisor;
-                        ++res.coefficient;
+                        ++res;
                     }
 
-                    if ((dividend == 0 && adjust >= 0) || numberOfDigits(res.coefficient) == hook.precision + 1)
+                    if ((dividend == 0 && adjust >= 0) || numberOfDigits(res) == hook.precision + 1)
                     {
                         break;
                     }
                     else
                     {
-                        res.coefficient *= 10;
+                        res *= 10;
                         dividend *= 10;
                         ++adjust;
                     }
                 }
             }
 
-            res.exponent = exponent - (rhs.exponent + adjust);
-            res.round();
-            return res;
+            coefficient = res;
+            exponent = exponent - (rhs.exponent + adjust);
+            round();
+            return this;
         }
         else
         {
@@ -917,6 +960,16 @@ public:
         }
         else
         {
+            if (exponent == 0 && sign == 0)
+            {
+                if (coefficient == d)
+                    return 0;
+                if (coefficient < d)
+                    return -1;
+                if (coefficient > d)
+                    return 1;
+            }
+
             return this.opCmp(d.decimal);
         }
     }
@@ -940,6 +993,31 @@ public:
         rounded = false;
         subnormal = false;
         underflow = false;
+    }
+
+    Decimal!(Hook) dup()() const
+    {
+        Unqual!(typeof(this)) res;
+        res.coefficient = coefficient;
+        res.exponent = exponent;
+        res.sign = sign;
+        res.NaN = NaN;
+        res.inf = inf;
+        res.clamped = clamped;
+        res.divisionByZero = divisionByZero;
+        res.inexact = inexact;
+        res.invalidOperation = invalidOperation;
+        res.overflow = overflow;
+        res.rounded = rounded;
+        res.subnormal = subnormal;
+        res.underflow = underflow;
+
+        return res;
+    }
+
+    immutable(Decimal!(Hook)) idup()() const
+    {
+        return dup!()();
     }
 
     ///
@@ -1298,6 +1376,14 @@ unittest
     assert(decimal("2.22") + 0.01 == decimal("2.23"));
     assert(decimal("2.22") + 1 == decimal("3.22"));
 
+    // test that opOpAssign works properly
+    auto d1 = decimal("3.55");
+    d1 += 0.45;
+    assert(d1.toString() == "4.00");
+    auto d2 = decimal("3.55");
+    d2 -= 0.55;
+    assert(d2.toString() == "3.00");
+
     static struct CustomHook
     {
         enum Rounding roundingMode = Rounding.HalfUp;
@@ -1305,22 +1391,22 @@ unittest
     }
 
     // rounding test on addition
-    auto d1 = decimal!(CustomHook)("0.999E-2");
-    auto d2 = decimal!(CustomHook)("0.1E-2");
-    auto v = d1 + d2;
+    auto d3 = decimal!(CustomHook)("0.999E-2");
+    auto d4 = decimal!(CustomHook)("0.1E-2");
+    auto v = d3 + d4;
     assert(v.toString == "0.0110");
     assert(v.inexact);
     assert(v.rounded);
 
     // higher precision tests
-    auto d3 = decimal!(HighPrecision)("10000e+9");
-    auto d4 = decimal!(HighPrecision)("7");
-    auto v2 = d3 - d4;
+    auto d5 = decimal!(HighPrecision)("10000e+9");
+    auto d6 = decimal!(HighPrecision)("7");
+    auto v2 = d5 - d6;
     assert(v2.toString() == "9999999999993");
 
-    auto d5 = decimal!(HighPrecision)("1e-50");
-    auto d6 = decimal!(HighPrecision)("4e-50");
-    auto v3 = d5 + d6;
+    auto d7 = decimal!(HighPrecision)("1e-50");
+    auto d8 = decimal!(HighPrecision)("4e-50");
+    auto v3 = d7 + d8;
     assert(v3.toString() == "0.00000000000000000000000000000000000000000000000005");
 }
 
@@ -1373,6 +1459,11 @@ unittest
         assert(d.invalidOperation == el.invalidOperation);
         assert(d.rounded == el.rounded);
     }
+
+    // test that opOpAssign works properly
+    auto d1 = decimal("2.5");
+    d1 *= 5.4;
+    assert(d1.toString() == "13.50");
 }
 
 // division
@@ -1435,12 +1526,17 @@ unittest
         assert(d.rounded == el.rounded);
     }
 
+    // test that opOpAssign works properly
+    auto d1 = decimal(1000);
+    d1 /= 10;
+    assert(d1.toString() == "100");
+
     // test that the proper DivisionByZero function is called
     assertThrown!DivisionByZero(() { cast(void) (decimal!(Throw)(1) / decimal(0)); } ());
 }
 
 // cmp and equals
-@system pure nothrow
+//@system pure nothrow
 unittest
 {
     static struct Test
@@ -2219,7 +2315,7 @@ unittest
 /*
  * Detect whether $(D X) is an enum type, or manifest constant.
  */
-private template isEnum(X...) if (X.length == 1)
+template isEnum(X...) if (X.length == 1)
 {
     static if (is(X[0] == enum))
     {
