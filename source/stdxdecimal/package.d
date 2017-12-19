@@ -73,13 +73,22 @@ package:
     enum hasSubnormalMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onSubnormal(d); });
     enum hasUnderflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onUnderflow(d); });
 
-    // 19 because 9_999_999_999_999_999_999 ^^ 2
-    // can still fit in a uint128
-    enum useBigInt = Hook.precision > 19;
-    // 9 because 999_999_999 ^^ 2
-    // can still fit in a ulong
-    // TODO: Much slower on DMD, maybe disable for it?
-    enum useU128 = Hook.precision > 9 && Hook.precision <= 19;
+    version (DigitalMars)
+    {
+        enum useBigInt = Hook.precision > 9;
+        // disabled for DMD as it's 10x slower than BigInts in some
+        // operations
+        enum useU128 = false;
+    }
+    else
+    {
+        // 19 because 9_999_999_999_999_999_999 ^^ 2
+        // can still fit in a uint128
+        enum useBigInt = Hook.precision > 19;
+        // 9 because 999_999_999 ^^ 2
+        // can still fit in a ulong
+        enum useU128 = Hook.precision > 9 && Hook.precision <= 19;
+    }
 
     /*
         rounds the coefficient via `Hook`s rounding mode.
