@@ -10,7 +10,7 @@ import std.bigint;
 
 struct HigherHook
 {
-    enum uint precision = 20;
+    enum uint precision = 19;
     enum Rounding roundingMode = Rounding.HalfUp;
 }
 
@@ -21,11 +21,11 @@ void main()
     auto t3 = BigInt(1000000);
     auto t4 = BigInt(5000000);
     auto t5 = decimal(10000.12);
-    auto t6 = decimal(5000000);
+    auto t6 = decimal(50);
     auto t7 = decimal!(HighPrecision)(10000.12);
     auto t8 = decimal!(HighPrecision)(5000000);
     auto t9 = decimal!(HigherHook)(10000.12);
-    auto t10 = decimal!(HigherHook)(5000000);
+    auto t10 = decimal!(HigherHook)(5000);
 
     real rres;
     BigInt bres;

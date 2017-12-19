@@ -63,19 +63,19 @@ reduce | ❌
 
 ## Current Performance
 
-Run on a 15", 2015 Macbook Pro
+Run on a 15", 2015 Macbook Pro, (rounded to the nearest ms; test values purposely avoid rounding, which is the slowest part by far)
 
-Test | `real` | `BigInt` | `Decimal` (Precision 9) | `Decimal` (Precision 64) | Python `Decimal` | Python `Decimal` (64 Digits)
+Test | `BigInt` | `Decimal` (P = 9) | `Decimal` (P = 19) | `Decimal` (P = 64) | Python `Decimal` | Python `Decimal` (64 Digits)
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-Addition (Sum 5M Runs) | 18 ms, 719 μs, and 9 hnsecs | 722 ms, 669 μs, and 9 hnsecs | 317 ms, 736 μs, and 8 hnsecs | 4 secs, 265 ms, and 9 hnsecs | 799 ms | 741 ms
-Subtraction (Sum 5M Runs) | 24 ms and 477 μs | 737 ms, 56 μs, and 7 hnsecs | 310 ms, 811 μs, and 7 hnsecs | 4 secs, 275 ms, 391 μs, and 8 hnsecs | 800 ms | 830 ms
-Multiplication (sum of 5M runs) | 18 ms, 397 μs, and 1 hnsec | 1 sec, 363 ms, and 219 μs | 477 ms, 119 μs, and 6 hnsecs | 7 secs, 39 ms, 998 μs, and 3 hnsecs | 695 ms | 1 sec 541 ms
-Division (sum of 1M runs) | 4 ms, 278 μs, and 6 hnsecs | 262 ms, 27 μs, and 6 hnsecs | 55 ms, 44 μs, and 9 hnsecs | 16 secs, 556 ms, 133 μs, and 4 hnsecs | 215 ms | 416 ms
-Sorting 1M Uniformly Random Numbers | 177 ms, 537 μs, and 9 hnsecs | 846 ms, 834 μs, and 4 hnsecs | 604 ms, 684 μs, and 4 hnsecs | 8 secs, 116 ms, 285 μs, and 4 hnsecs | 1 sec 536 ms | 1 sec 228 ms
+Addition (n = 5M) | 594 ms | 105 ms | 152 ms | 2,358 ms | 799 ms | 741 ms
+Subtraction (n = 5M) | 494 ms | 103 ms | 149 ms | 2,247 ms | 800 ms | 830 ms
+Multiplication (n = 5M) | 156 ms | 16 ms | 1,689 ms | 999 ms | 695 ms | 1541 ms
+Division (n = 1M) | 207 ms | 25 ms | 532 ms | 11,116 ms | 215 ms | 416 ms
+Sorting 1M Uniformly Random Numbers | 592 ms | 386 ms | 502 ms | 5,170 ms | 1,536 ms | 1,228 ms
 
 ### Run It Yourself
 
-D: `dmd -O -release -inline bench.d source/stdxdecimal/package.d && ./bench`
+D: `ldc2 -O -release bench.d source/stdxdecimal/package.d && ./bench`
 
 Python:
 
