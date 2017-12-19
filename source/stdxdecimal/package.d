@@ -1,8 +1,218 @@
 /**
- *   Adapted from the specification of the General Decimal Arithmetic.
+ * This module defines an exact decimal type, `Decimal`, to a specific number of digits.
+ * This is designed to be a drop in replacement for built-in floating point numbers,
+ * allowing all the same possible operations.
  *
- *   This implementation is written for the D Programming Language
- *   by Jack Stouffer and is licensed under the Boost Software License 1.0.
+ * Floating point numbers (`float`, `double`, `real`) are inherently inaccurate because
+ * they $(HTTPS en.wikipedia.org/wiki/Floating-point_arithmetic#Accuracy_problems, cannot represent)
+ * all possible numbers with a decimal part. `Decimal` on the other hand, is able to
+ * represent all possible numbers with a decimal part (limited by memory size and `Hook`).
+ *
+ * Adapted from the specification of the
+ * $(HTTP http://speleotrove.com/decimal/decarith.html, General Decimal Arithmetic).
+ *
+ * Basic_Example:
+ * ---
+ * import stdxdecimal;
+ *
+ * void main()
+ * {
+ *     auto d1 = decimal("1.23E-10");
+ *     d1 -= decimal("2.00E-10");
+ *     assert(d1.toString() == "-0.000000000077");
+ * }
+ * ---
+ *
+ * Custom_Behavior:
+ *     The behavior of `Decimal` is controlled by the template parameter `Hook`,
+ *     which can be a user defined type or one of the `Hook`s provided by this
+ *     module.
+ *
+ *     The following behaviors are controlled by `Hook`:
+ *
+ *     $(UL
+ *         $(LI The number of significant digits to store.)
+ *         $(LI The rounding method.)
+ *         $(LI The min and max exponents.)
+ *         $(LI What to do when exceptional conditions arise.)
+ *     )
+ *
+ *     The following predefined `Hook`s are available:
+ *
+ *     $(TABLE
+ *         $(TR
+ *             $(TD $(LREF Abort))
+ *             $(TD `precision` is set to 9, rounding is `HalfUp`, and the program
+ *                  will `assert(0)` on divsion by zero, overflow, underflow, and
+ *                  invalid operations.
+ *             )
+ *         )
+ *         $(TR
+ *             $(TD $(LREF Throw))
+ *             $(TD `precision` is set to 9, rounding is `HalfUp`, and the program
+ *                  will throw an exception on divsion by zero, overflow, underflow, and
+ *                  invalid operations.
+ *             )
+ *         )
+ *         $(TR
+ *             $(TD $(LREF HighPrecision))
+ *             $(TD `precision` is set to 64, rounding is `HalfUp`, and the program
+ *                  will `assert(0)` on divsion by zero, overflow, underflow, and
+ *                  invalid operations.
+ *             )
+ *         )
+ *         $(TR
+ *             $(TD $(LREF NoOp))
+ *             $(TD `precision` is set to 9, rounding is `HalfUp`, and nothing will
+ *                  happen on exceptional conditions.
+ *             )
+ *         )
+ *     )
+ * 
+ * Percision_and_Rounding:
+ *     `Decimal` accurately stores as many as `Hook.precision` significant digits.
+ *     Once the number of digits `> Hook.precision`, then the number is rounded.
+ *     Rounding is performed according to the rules laid out in $(LREF RoundingMode).
+ *
+ *     By default, the precision is 9, and the rounding mode is `RoundingMode.HalfUp`.
+ *
+ *     `Hook.precision` must be `<= uint.max - 1` and `> 1`.
+ *
+ * Note:
+ *     Increasing the number of possible significant digits can result in orders
+ *     of magnitude slower behavior, as described below. Only ask for as many digits
+ *     as you really need.
+ *
+ *     $(TABLE
+ *         $(TR
+ *             $(TD 9 and below (default))
+ *             $(TD Baseline)
+ *         )
+ *         $(TR
+ *             $(TD 10-19)
+ *             $(TD 2x slower than baseline)
+ *         )
+ *         $(TR
+ *             $(TD 20-1000)
+ *             $(TD 20x slower than baseline)
+ *         )
+ *         $(TR
+ *             $(TD 1000 and above)
+ *             $(TD 200x slower than baseline)
+ *         )
+ *     )
+ *
+ * Exceptional_Conditions:
+ *     Certain operations will cause a `Decimal` to enter into an invalid state,
+ *     e.g. dividing by zero. When this happens, Decimal does two things
+ *
+ *     $(OL
+ *         $(LI Sets a public `bool` variable to `true`.)
+ *         $(LI Calls a specific function in `Hook`, if it exists, with the
+ *         operation's result as the only parameter.)
+ *     )
+ *
+ *    The following table lists all of the conditions
+ *
+ *    $(TABLE
+ *        $(THEAD
+ *            $(TR
+ *                $(TH Name)
+ *                $(TH Flag)
+ *                $(TH Method)
+ *                $(TH Description)
+ *            )
+ *        )
+ *        $(TBODY
+ *            $(TR
+ *                $(TD Clamped)
+ *                $(TD `clamped`)
+ *                $(TD `onClamped`)
+ *                $(TD Occurs when the exponent has been altered to fit in-between
+ *                     `Hook.maxExponent` and `Hook.minExponent`.
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Inexact)
+ *                $(TD `inexact`)
+ *                $(TD `onInexact`)
+ *                $(TD Occurs when the result of an operation is not perfectly accurate.
+ *                     Mostly occurs when rounding removed non-zero digits.
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Invalid Operation)
+ *                $(TD `invalidOperation`)
+ *                $(TD `onInvalidOperation`)
+ *                $(TD Flagged when an operation makes no sense, e.g. multiplying `0`
+ *                     and `Infinity` or add -Infinity to Infinity. 
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Division by Zero)
+ *                $(TD `divisionByZero`)
+ *                $(TD `onDivisionByZero`)
+ *                $(TD Specific invalid operation. Occurs whenever the dividend of a
+ *                     division or modulo is equal to zero.
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Rounded)
+ *                $(TD `rounded`)
+ *                $(TD `onRounded`)
+ *                $(TD Occurs when the `Decimal`'s result had more than `Hook.precision`
+ *                     significant digits and was reduced.
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Subnormal)
+ *                $(TD `subnormal`)
+ *                $(TD `onSubnormal`)
+ *                $(TD Flagged when the exponent is less than `Hook.maxExponent` but the
+ *                     digits of the `Decimal` are not inexact.
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Overflow)
+ *                $(TD `overflow`)
+ *                $(TD `onOverflow`)
+ *                $(TD Not to be confused with integer overflow, this is flagged when
+ *                     the exponent of the result of an operation would have been above
+ *                     `Hook.maxExponent` and the result is inexact. Inexact and Rounded
+ *                     are always set with this flag.
+ *                )
+ *            )
+ *            $(TR
+ *                $(TD Underflow)
+ *                $(TD `underflow`)
+ *                $(TD `onUnderflow`)
+ *                $(TD Not to be confused with integer underflow, this is flagged when
+ *                     the exponent of the result of an operation would have been below
+ *                     `Hook.minExponent`. Inexact, Rounded, and Subnormal are always set with
+ *                     this flag.
+ *                )
+ *            )
+ *        )
+ *    )
+ *
+ *    Each function documentation lists the specific states that will led to one
+ *    of these flags.
+ *
+ * Differences_From_The_Specification:
+ *     $(UL
+ *         $(LI There's no concept of a Signaling NaN in the module.)
+ *         $(LI `compare`, implemented as `opCmp`, does not propagate `NaN` due
+ *         to D's `opCmp` semantics.)
+ *     )
+ *
+ * Version:
+ *     `v0.5`. Still work in progress. For missing features, see `README.md`
+ *
+ * License:
+ *     $(HTTP boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ *
+ * Authors:
+ *     Jack Stouffer
 */
 module stdxdecimal;
 
@@ -12,10 +222,10 @@ import std.range.primitives;
 import std.traits;
 
 /**
- * Behavior is defined by `Hook`. Number of significant digits is limited by 
- * `Hook.precision`.
- *
- * Spec: http://speleotrove.com/decimal/decarith.html
+ * A exact decimal type, accurate to `Hook.precision` digits. Designed to be a
+ * drop in replacement for floating points.
+ * 
+ * Behavior is defined by `Hook`. See the module overview for more information.
  */
 struct Decimal(Hook = Abort)
 {
@@ -300,6 +510,8 @@ package:
             exponent = 0;
             sign = 0;
             invalidOperation = true;
+            static if (hasInvalidOperationMethod)
+                hook.onInvalidOperation(this);
             return this;
         }
 
@@ -437,8 +649,15 @@ public:
     bool underflow;
 
     /**
-     * Note: Float construction less accurate than string, Use
-     * string construction if possible
+     * Constructs an exact decimal type from a built in number
+     * 
+     * Params:
+     *     num = the number to convert to exact decimal
+     * 
+     * Note:
+     *     Using `float` types for construction is less accurate than using a string
+     *     representation due to floating point inaccuracy. If possible, it's always
+     *     better to use string construction.
      */
     this(T)(const T num) pure if (isNumeric!T)
     {
@@ -493,7 +712,33 @@ public:
     }
 
     /**
-     * implements spec to-number
+     * Converts a string representing a number to an exact decimal.
+     *
+     * If the string does not represent a number, then the result is `NaN`
+     * and `invalidOperation` is `true`.
+     *
+     * Implements spec `to-number`.
+     *
+     * Params:
+     *     str = The string to convert from
+     *
+     * String_Spec:
+     * -------
+     * sign           ::=  ’+’ | ’-’
+     * digit          ::=  ’0’ | ’1’ | ’2’ | ’3’ | ’4’ | ’5’ | ’6’ | ’7’ |
+     *                     ’8’ | ’9’
+     * indicator      ::=  ’e’ | ’E’
+     * digits         ::=  digit [digit]...
+     * decimal-part   ::=  digits ’.’ [digits] | [’.’] digits
+     * exponent-part  ::=  indicator [sign] digits
+     * infinity       ::=  ’Infinity’ | ’Inf’
+     * nan            ::=  ’NaN’ [digits]
+     * numeric-value  ::=  decimal-part [exponent-part] | infinity
+     * numeric-string ::=  [sign] numeric-value | [sign] nan
+     * -------
+     *
+     * Exceptional_Conditions:
+     *     invalidOperation is flagged when `str` is not a valid string
      */
     this(S)(S str) if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S && !isSomeString!S)
     {
@@ -666,13 +911,28 @@ public:
     }
 
     /**
-     * The result has the hook of the left hand side. Invalid operations
-     * call `onInvalidOperation` on the `hook` on the result and set the
-     * result's flag to `true`. Does not effect the left hand side of the
-     * operation.
+     * Performs a binary operation between two decimals, or a decimal and
+     * a built in number.
+     * 
+     * The result has the hook of the left hand side. On non-assignment
+     * operations invalid operations do not effect the left hand side of
+     * the operation.
      *
      * When the right hand side is a built-in numeric type, the default
      * hook `Abort` is used for its decimal representation.
+     *
+     * Params:
+     *     rhs = the right-hand side of the operation
+     *
+     * Exceptional_Conditions:
+     *     `invalidOperation` is flagged under the following conditions
+     *     $(UL
+     *         $(LI Adding Infinity and -Infinity, and vice-versa)
+     *         $(LI Multiplying +/-Infinity by +/-zero)
+     *         $(LI Dividing anything but zero by zero)
+     *         $(LI Dividing +/-Infinity by +/-Infinity)
+     *     )
+     *     `divisionByZero` is flagged when dividing anything but zero by zero
      */
     auto opBinary(string op, T)(T rhs) const
         if (op == "+" || op == "-" || op == "*" || op == "/")
@@ -875,21 +1135,21 @@ public:
         }
     }
 
+    // goes against D's normal nan rules because they're really annoying when
+    // sorting an array of floating point numbers
     /**
-     * The spec says that comparing `NAN`s should yield `NAN`.
-     * Unfortunately this isn't possible in D, as the return value of `opCmp` must be
-     * [`-1`, `1`].
-     *
-     * Further, in D, the NaN values of floating point types always return `false` in
-     * any comparison. But, this makes sorting an array with NaN values impossible.
-     *
-     * So, `-INF` is less than all numbers, `-NAN` is greater than `-INF` but
-     * less than all other numbers, `NAN` is greater than `-NAN` but less than all other
-     * numbers and inf is greater than all numbers. `-NAN` and `NAN` are equal to
+     * `-Infinity` is less than all numbers, `-NaN` is greater than `-Infinity` but
+     * less than all other numbers, `NaN` is greater than `-NaN` but less than all other
+     * numbers and `Infinity` is greater than all numbers. `-NaN` and `NaN` are equal to
      * themselves.
      *
-     * Signaling NAN is an invalid operation, and will trigger the appropriate hook
-     * method and always yield `-1`.
+     * Params:
+     *     d = the decimal or built-in number to compare to
+     *
+     * Returns:
+     *     Barring special values, `0` if subtracting the two numbers yields
+     *     `0`, `-1` if the result is less than `0`, and `1` if the result is
+     *     greater than zero
      */
     int opCmp(T)(T d) const if (isNumeric!T || is(Unqual!T == Decimal))
     {
@@ -992,14 +1252,14 @@ public:
         }
     }
 
-    ///
+    /// Returns: `true` if `opCmp` would return `0`
     bool opEquals(T)(T d) const if (isNumeric!T || is(Unqual!T == Decimal))
     {
         return this.opCmp(d) == 0;
     }
 
     /**
-     * Convenience function to reset all flags to `false` at once
+     * Convenience function to reset all exceptional condition flags to `false` at once
      */
     void resetFlags() @safe @nogc pure nothrow
     {
@@ -1071,15 +1331,7 @@ public:
     ///
     alias toString = toDecimalString;
 
-    /**
-     * Decimal strings
-     *
-     * Special Values:
-     *     Quiet Not A Number = `NaN`
-     *     Infinite = `Infinity`
-     *
-     *     If negative, then all of above have `-` pre-pended
-     */
+    /// Returns: Returns the decimal string representation of this decimal.
     auto toDecimalString() const
     {
         import std.array : appender;
@@ -1470,7 +1722,7 @@ unittest
 }
 
 // multiplication
-@system
+@system pure nothrow
 unittest
 {
     static struct Test
@@ -1526,7 +1778,7 @@ unittest
 }
 
 // division
-@system
+@system pure
 unittest
 {
     import std.exception : assertThrown;
@@ -1595,7 +1847,7 @@ unittest
 }
 
 // cmp and equals
-//@system pure nothrow
+@system pure nothrow
 unittest
 {
     static struct Test
@@ -1657,7 +1909,8 @@ unittest
 }
 
 // to string
-@system unittest
+@system pure nothrow
+unittest
 {
     auto t = Decimal!()();
     t.sign = 0;
@@ -1874,12 +2127,12 @@ unittest
 }
 
 /**
- * Rounding mode
+ * Controls what happens when the number of significant digits exceeds `Hook.precision`
  */
 enum Rounding
 {
     /**
-     * (Round toward 0; truncate.) The discarded digits are ignored; the result is unchanged.
+     * Round toward 0, a.k.a truncate. The discarded digits are ignored.
      */
     Down,
     /**
@@ -1933,9 +2186,9 @@ enum Rounding
 
 /**
  * Will halt program on division by zero, invalid operations,
- * overflows, and underflows
+ * overflows, and underflows.
  *
- * Has 16 significant digits, rounds half up
+ * Has 9 significant digits, rounds half up
  */
 struct Abort
 {
@@ -1975,9 +2228,8 @@ struct Abort
 /**
  * Same as abort, but offers 64 significant digits
  *
- * Note: Using any precision over `9` is an order of magnitude slower
- * due to implementation constraints. Only use this if you really need
- * data that precise
+ * Note: As noted in the module overview, using 64 significant digits is much
+ * slower than `9` or `19`.
  */
 struct HighPrecision
 {
@@ -2015,7 +2267,7 @@ struct HighPrecision
  * Will throw exceptions on division by zero, invalid operations,
  * overflows, and underflows
  *
- * Has 16 significant digits, rounds half up
+ * Has 9 significant digits, rounds half up
  */
 struct Throw
 {
@@ -2052,7 +2304,7 @@ struct Throw
 /**
  * Does nothing on invalid operations except the proper flags
  *
- * Has 16 significant digits, rounds half up
+ * Has 9 significant digits, rounds half up
  */
 struct NoOp
 {

@@ -45,6 +45,7 @@ Overflow/Underflow Behavior | ❌
 Subnormal Behavior | ❌
 Clamping Behavior | ❌
 Equals | ✓
+toHash | ❌
 Compare | ✓
 Addition | ✓
 Subtraction | ✓
