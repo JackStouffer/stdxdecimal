@@ -51,6 +51,7 @@ Addition | ✓
 Subtraction | ✓
 Multiply | ✓
 Divide | ✓
+Modulo | ❌
 opOpAssign `+`,`-`,`*`,`/`,`^^` | ❌
 Unary `+`,`-`,`++`,`--` | ❌
 opCast `int`,`real`,`bool` | ❌

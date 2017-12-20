@@ -759,6 +759,8 @@ public:
             return isDigit(a) || a == 'E' || a == 'e' || a == '-' || a == '+' || a == '.';
         }
 
+        // TODO: filter out underscores
+
         if (str.empty)
         {
             isNan = true;
@@ -1085,6 +1087,7 @@ public:
             }
 
             int adjust;
+            // TODO: what happens if they have different precisions
             Unqual!(typeof(coefficient)) res;
             Unqual!(typeof(coefficient)) dividend = coefficient;
             Unqual!(typeof(rhs.coefficient)) divisor = rhs.coefficient;
@@ -1502,7 +1505,7 @@ unittest
     import std.internal.test.dummyrange;
     auto r1 = new ReferenceForwardRange!dchar("123.456");
     auto d1 = Decimal!()(r1);
-    assert(d1.coefficient == 123456);
+    assert(d1.coefficient == 123_456);
     assert(d1.sign == 0);
     assert(d1.exponent == -3);
 
@@ -1564,8 +1567,8 @@ unittest
         Test(0.00002, 0, 2, -5),
         Test(1.02, 0, 102, -2),
         Test(200.0, 0, 200, 0),
-        Test(1234.5678, 0, 12345678, -4),
-        Test(-1234.5678, 1, 12345678, -4),
+        Test(1234.5678, 0, 12_345_678, -4),
+        Test(-1234.5678, 1, 12_345_678, -4),
         Test(-1234, 1, 1234, 0),
     ];
 
@@ -2000,39 +2003,39 @@ unittest
     }
 
     auto downValues = [
-        Test(12345, 12345, false, false),
-        Test(123449, 12344, true, true),
-        Test(1234499999, 12344, true, true),
-        Test(123451, 12345, true, true),
-        Test(123450000001, 12345, true, true),
-        Test(1234649999, 12346, true, true),
-        Test(123465, 12346, true, true),
-        Test(1234650001, 12346, true, true),
-        Test(1234500, 12345, false, true)
+        Test(12_345, 12345, false, false),
+        Test(123_449, 12344, true, true),
+        Test(1_234_499_999, 12_344, true, true),
+        Test(123_451, 12_345, true, true),
+        Test(123_450_000_001, 12_345, true, true),
+        Test(1_234_649_999, 12_346, true, true),
+        Test(123_465, 12_346, true, true),
+        Test(1_234_650_001, 12_346, true, true),
+        Test(1_234_500, 12_345, false, true)
     ];
     auto upValues = [
-        Test(12345, 12345, false, false),
-        Test(1234499, 12345, true, true),
-        Test(123449999999, 12345, true, true),
-        Test(123450000001, 12346, true, true),
-        Test(123451, 12346, true, true),
-        Test(1234649999, 12347, true, true),
-        Test(123465, 12347, true, true),
-        Test(123454, 12346, true, true),
-        Test(1234500, 12345, false, true)
+        Test(12_345, 12_345, false, false),
+        Test(1_234_499, 12_345, true, true),
+        Test(123_449_999_999, 12_345, true, true),
+        Test(123_450_000_001, 12_346, true, true),
+        Test(123_451, 12_346, true, true),
+        Test(1_234_649_999, 12_347, true, true),
+        Test(123_465, 12_347, true, true),
+        Test(123_454, 12_346, true, true),
+        Test(1_234_500, 12_345, false, true)
     ];
     auto halfUpValues = [
-        Test(12345, 12345, false, false),
-        Test(123449, 12345, true, true),
-        Test(1234499, 12345, true, true),
-        Test(12344999, 12345, true, true),
-        Test(123451, 12345, true, true),
-        Test(1234501, 12345, true, true),
-        Test(123464999, 12346, true, true),
-        Test(123465, 12347, true, true),
-        Test(1234650001, 12347, true, true),
-        Test(123456, 12346, true, true),
-        Test(1234500, 12345, false, true)
+        Test(12_345, 12_345, false, false),
+        Test(123_449, 12_345, true, true),
+        Test(1_234_499, 12_345, true, true),
+        Test(12_344_999, 12_345, true, true),
+        Test(123_451, 12_345, true, true),
+        Test(1_234_501, 12_345, true, true),
+        Test(123_464_999, 12_346, true, true),
+        Test(123_465, 12_347, true, true),
+        Test(1_234_650_001, 12_347, true, true),
+        Test(123_456, 12_346, true, true),
+        Test(1_234_500, 12_345, false, true)
     ];
 
     foreach (e; downValues)
@@ -2531,7 +2534,7 @@ auto numberOfDigits(T)(T x)
 
         immutable len = x.ulongLength;
 
-        if (len == 1 || len == 0)
+        if (len == 1)
         {
             if (x == 0UL) return 1;
             if (x < 10UL) return 1;
