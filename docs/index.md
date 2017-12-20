@@ -40,23 +40,23 @@ The following predefined `Hook`s are available:
 
 <table>
     <tr>
-        <td></td>
+        <td><code>Abort</code></td>
         <td>
             <code>precision</code> is set to 9, rounding is <code>HalfUp</code>, and the program will <code>assert(0)</code> on divsion by zero, overflow, underflow, and invalid operations.
         </td>
     </tr>
     <tr>
-        <td></td>
+        <td><code>Throw</code></td>
         <td><code>precision</code> is set to 9, rounding is <code>HalfUp</code>, and the program will throw an exception on divsion by zero, overflow, underflow, and invalid operations.
         </td>
     </tr>
     <tr>
-        <td></td>
+        <td><code>HighPrecision</code></td>
         <td><code>precision</code> is set to 64, rounding is <code>HalfUp</code>, and the program will <code>assert(0)</code> on divsion by zero, overflow, underflow, and invalid operations.
         </td>
     </tr>
     <tr>
-        <td></td>
+        <td><code>NoOp</code></td>
         <td><code>precision</code> is set to 9, rounding is <code>HalfUp</code>, and nothing will happen on exceptional conditions.
         </td>
     </tr>
@@ -119,51 +119,51 @@ The following table lists all of the conditions
    <tbody>
         <tr>
            <td>Clamped</td>
-           <td>`clamped`</td>
-           <td>`onClamped`</td>
-           <td>Occurs when the exponent has been altered to fit in-between `Hook.maxExponent` and `Hook.minExponent`.</td>
+           <td><code>clamped</code></td>
+           <td><code>onClamped</code></td>
+           <td>Occurs when the exponent has been altered to fit in-between <code>Hook.maxExponent</code> and <code>Hook.minExponent</code>.</td>
         </tr>
         <tr>
            <td>Inexact</td>
-           <td>`inexact`</td>
-           <td>`onInexact`</td>
+           <td><code>inexact</code></td>
+           <td><code>onInexact</code></td>
            <td>Occurs when the result of an operation is not perfectly accurate. Mostly occurs when rounding removed non-zero digits.</td>
         </tr>
         <tr>
            <td>Invalid Operation</td>
-           <td>`invalidOperation`</td>
-           <td>`onInvalidOperation`</td>
-           <td>Flagged when an operation makes no sense, e.g. multiplying `0` and `Infinity` or add -Infinity to Infinity.</td>
+           <td><code>invalidOperation</code></td>
+           <td><code>onInvalidOperation</code></td>
+           <td>Flagged when an operation makes no sense, e.g. multiplying <code>0</code> and <code>Infinity</code> or add -Infinity to Infinity.</td>
         </tr>
         <tr>
            <td>Division by Zero</td>
-           <td>`divisionByZero`</td>
-           <td>`onDivisionByZero`</td>
+           <td><code>divisionByZero</code></td>
+           <td><code>onDivisionByZero</code></td>
            <td>Specific invalid operation. Occurs whenever the dividend of a division or modulo is equal to zero.</td>
         </tr>
         <tr>
            <td>Rounded</td>
-           <td>`rounded`</td>
-           <td>`onRounded`</td>
-           <td>Occurs when the `Decimal`'s result had more than `Hook.precision` significant digits and was reduced.</td>
+           <td><code>rounded</code></td>
+           <td><code>onRounded</code></td>
+           <td>Occurs when the <code>Decimal</code>'s result had more than <code>Hook.precision</code> significant digits and was reduced.</td>
         </tr>
         <tr>
            <td>Subnormal</td>
-           <td>`subnormal`</td>
-           <td>`onSubnormal`</td>
-           <td>Flagged when the exponent is less than `Hook.maxExponent` but the digits of the `Decimal` are not inexact.</td>
+           <td><code>subnormal</code></td>
+           <td><code>onSubnormal</code></td>
+           <td>Flagged when the exponent is less than <code>Hook.maxExponent</code> but the digits of the <code>Decimal</code> are not inexact.</td>
         </tr>
         <tr>
            <td>Overflow</td>
-           <td>`overflow`</td>
-           <td>`onOverflow`</td>
-           <td>Not to be confused with integer overflow, this is flagged when the exponent of the result of an operation would have been above `Hook.maxExponent` and the result is inexact. Inexact and Rounded are always set with this flag.</td>
+           <td><code>overflow</code></td>
+           <td><code>onOverflow</code></td>
+           <td>Not to be confused with integer overflow, this is flagged when the exponent of the result of an operation would have been above <code>Hook.maxExponent</code> and the result is inexact. Inexact and Rounded are always set with this flag.</td>
         </tr>
         <tr>
            <td>Underflow</td>
-           <td>`underflow`</td>
-           <td>`onUnderflow`</td>
-           <td>Not to be confused with integer underflow, this is flagged when the exponent of the result of an operation would have been below `Hook.minExponent`. Inexact, Rounded, and Subnormal are always set with this flag.</td>
+           <td><code>underflow</code></td>
+           <td><code>onUnderflow</code></td>
+           <td>Not to be confused with integer underflow, this is flagged when the exponent of the result of an operation would have been below <code>Hook.minExponent</code>. Inexact, Rounded, and Subnormal are always set with this flag.</td>
         </tr>
    </tbody>
 </table>
@@ -178,12 +178,11 @@ Each function documentation lists the specific states that will led to one of th
 
 <section class="section">
     <div class="declaration">
-      <h4>Declaration</h4>
+      <h2>Decimal</h2>
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Decimal"></span>struct <code class="code">Decimal</code>(Hook = Abort);
-
+            <span class="ddoc_anchor" id="Decimal"></span>struct <code class="code">Decimal</code>(Hook = Abort)
           </code>
         </p>
       </div>
@@ -221,7 +220,6 @@ Each function documentation lists the specific states that will led to one of th
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.hook"></span>Hook <code class="code">hook</code>;
-
           </code>
         </p>
       </div>
@@ -267,9 +265,7 @@ Each function documentation lists the specific states that will led to one of th
 <br>
 <span class="ddoc_anchor" id="Decimal.subnormal"></span>bool <code class="code">subnormal</code>;
 <br>
-<span class="ddoc_anchor" id="Decimal.underflow"></span>bool <code class="code">underflow</code>;
-
-          </code>
+<span class="ddoc_anchor" id="Decimal.underflow"></span>bool <code class="code">underflow</code>;</code>
         </p>
       </div>
     </div>
@@ -300,7 +296,6 @@ Each function documentation lists the specific states that will led to one of th
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.this"></span>pure this(T)(const T <code class="code">num</code>) if (isNumeric!T);
-
           </code>
         </p>
       </div>
@@ -333,7 +328,6 @@ Each function documentation lists the specific states that will led to one of th
   </div>
 </td>
 </tr>
-
     </tbody>
   </table>
 </div>
@@ -365,7 +359,6 @@ Using <code class="code">float</code> types for construction is less accurate th
             <span class="ddoc_anchor" id="Decimal.this.2"></span>this(S)(S <code class="code">str</code>) if (isForwardRange!S &amp;&amp; isSomeChar!(ElementEncodingType!S) &amp;&amp; !isInfinite!S &amp;&amp; !isSomeString!S);
 <br>
 pure this(S)(S <code class="code">str</code>) if (isSomeString!S);
-
           </code>
         </p>
       </div>
@@ -409,7 +402,6 @@ pure this(S)(S <code class="code">str</code>) if (isSomeString!S);
   </div>
 </td>
 </tr>
-
     </tbody>
   </table>
 </div>
@@ -467,7 +459,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
             <span class="ddoc_anchor" id="Decimal.opBinary"></span>const auto <code class="code">opBinary</code>(string op, T)(T <code class="code">rhs</code>) if (op == "+" || op == "-" || op == "*" || op == "/");
 <br>
 <span class="ddoc_anchor" id="Decimal.opOpAssign"></span>ref Decimal!Hook <code class="code">opOpAssign</code>(string op, T)(auto ref const T <code class="code">rhs</code>) if (op == "+" || op == "-" || op == "*" || op == "/");
-
           </code>
         </p>
       </div>
@@ -514,7 +505,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
   </div>
 </td>
 </tr>
-
     </tbody>
   </table>
 </div>
@@ -548,7 +538,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.opCmp"></span>const int <code class="code">opCmp</code>(T)(T <code class="code">d</code>) if (isNumeric!T || is(Unqual!T == Decimal));
-
           </code>
         </p>
       </div>
@@ -584,7 +573,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
   </div>
 </td>
 </tr>
-
     </tbody>
   </table>
 </div>
@@ -614,7 +602,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.opEquals"></span>const bool <code class="code">opEquals</code>(T)(T <code class="code">d</code>) if (isNumeric!T || is(Unqual!T == Decimal));
-
           </code>
         </p>
       </div>
@@ -647,7 +634,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.resetFlags"></span>pure nothrow @nogc @safe void <code class="code">resetFlags</code>();
-
           </code>
         </p>
       </div>
@@ -679,7 +665,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.dup"></span>const Decimal!Hook <code class="code">dup</code>()();
-
           </code>
         </p>
       </div>
@@ -712,7 +697,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.idup"></span>const immutable(Decimal!Hook) <code class="code">idup</code>()();
-
           </code>
         </p>
       </div>
@@ -745,7 +729,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.isNaN"></span>const pure nothrow @nogc @property @safe bool <code class="code">isNaN</code>();
-
           </code>
         </p>
       </div>
@@ -778,7 +761,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.isInfinity"></span>const pure nothrow @nogc @property @safe bool <code class="code">isInfinity</code>();
-
           </code>
         </p>
       </div>
@@ -811,7 +793,6 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
         <p class="para">
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.nan"></span>@property Decimal!Hook <code class="code">nan</code>()();
-
           </code>
         </p>
       </div>
@@ -843,9 +824,7 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Decimal.infinity"></span>@property Decimal!Hook <code class="code">infinity</code>()();
-
-          </code>
+            <span class="ddoc_anchor" id="Decimal.infinity"></span>@property Decimal!Hook <code class="code">infinity</code>()();</code>
         </p>
       </div>
     </div>
@@ -876,9 +855,7 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Decimal.toString"></span>alias <code class="code">toString</code> = toDecimalString;
-
-          </code>
+            <span class="ddoc_anchor" id="Decimal.toString"></span>alias <code class="code">toString</code> = toDecimalString;</code>
         </p>
       </div>
     </div>
@@ -903,9 +880,7 @@ invalidOperation is flagged when <code class="code"><code class="code">str</code
           <code class="code">
             <span class="ddoc_anchor" id="Decimal.toDecimalString"></span>const auto <code class="code">toDecimalString</code>();
 <br>
-const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <code class="code">w</code>) if (isOutputRange!(Writer, char));
-
-          </code>
+const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <code class="code">w</code>) if (isOutputRange!(Writer, char));</code>
         </p>
       </div>
     </div>
@@ -941,9 +916,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="decimal"></span>auto <code class="code">decimal</code>(Hook = Abort, R)(R <code class="code">r</code>) if (isForwardRange!R &amp;&amp; isSomeChar!(ElementEncodingType!R) &amp;&amp; !isInfinite!R || isNumeric!R);
-
-          </code>
+            <span class="ddoc_anchor" id="decimal"></span>auto <code class="code">decimal</code>(Hook = Abort, R)(R <code class="code">r</code>) if (isForwardRange!R &amp;&amp; isSomeChar!(ElementEncodingType!R) &amp;&amp; !isInfinite!R || isNumeric!R);</code>
         </p>
       </div>
     </div>
@@ -992,9 +965,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Rounding"></span>enum <code class="code">Rounding</code>: int;
-
-          </code>
+            <span class="ddoc_anchor" id="Rounding"></span>enum <code class="code">Rounding</code>: int;</code>
         </p>
       </div>
     </div>
@@ -1299,9 +1270,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort"></span>struct <code class="code">Abort</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="Abort"></span>struct <code class="code">Abort</code>;</code>
         </p>
       </div>
     </div>
@@ -1337,9 +1306,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="Abort.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;</code>
         </p>
       </div>
     </div>
@@ -1362,9 +1329,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort.precision"></span>enum uint <code class="code">precision</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="Abort.precision"></span>enum uint <code class="code">precision</code>;</code>
         </p>
       </div>
     </div>
@@ -1393,9 +1358,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort.onDivisionByZero"></span>void <code class="code">onDivisionByZero</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Abort.onDivisionByZero"></span>void <code class="code">onDivisionByZero</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1418,9 +1381,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort.onInvalidOperation"></span>void <code class="code">onInvalidOperation</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Abort.onInvalidOperation"></span>void <code class="code">onInvalidOperation</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1443,9 +1404,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort.onOverflow"></span>void <code class="code">onOverflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Abort.onOverflow"></span>void <code class="code">onOverflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1468,9 +1427,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Abort.onUnderflow"></span>void <code class="code">onUnderflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Abort.onUnderflow"></span>void <code class="code">onUnderflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1498,9 +1455,7 @@ const void <code class="code">toDecimalString</code>(Writer)(auto ref Writer <co
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision"></span>struct <code class="code">HighPrecision</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision"></span>struct <code class="code">HighPrecision</code>;</code>
         </p>
       </div>
     </div>
@@ -1536,9 +1491,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;</code>
         </p>
       </div>
     </div>
@@ -1561,9 +1514,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision.precision"></span>enum uint <code class="code">precision</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision.precision"></span>enum uint <code class="code">precision</code>;</code>
         </p>
       </div>
     </div>
@@ -1586,9 +1537,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision.onDivisionByZero"></span>void <code class="code">onDivisionByZero</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision.onDivisionByZero"></span>void <code class="code">onDivisionByZero</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1611,9 +1560,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision.onInvalidOperation"></span>void <code class="code">onInvalidOperation</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision.onInvalidOperation"></span>void <code class="code">onInvalidOperation</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1636,9 +1583,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision.onOverflow"></span>void <code class="code">onOverflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision.onOverflow"></span>void <code class="code">onOverflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1661,9 +1606,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="HighPrecision.onUnderflow"></span>void <code class="code">onUnderflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="HighPrecision.onUnderflow"></span>void <code class="code">onUnderflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1691,9 +1634,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw"></span>struct <code class="code">Throw</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="Throw"></span>struct <code class="code">Throw</code>;</code>
         </p>
       </div>
     </div>
@@ -1729,9 +1670,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="Throw.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;</code>
         </p>
       </div>
     </div>
@@ -1754,9 +1693,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw.precision"></span>enum uint <code class="code">precision</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="Throw.precision"></span>enum uint <code class="code">precision</code>;</code>
         </p>
       </div>
     </div>
@@ -1779,9 +1716,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw.onDivisionByZero"></span>void <code class="code">onDivisionByZero</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Throw.onDivisionByZero"></span>void <code class="code">onDivisionByZero</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1804,9 +1739,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw.onInvalidOperation"></span>void <code class="code">onInvalidOperation</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Throw.onInvalidOperation"></span>void <code class="code">onInvalidOperation</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1829,9 +1762,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw.onOverflow"></span>void <code class="code">onOverflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Throw.onOverflow"></span>void <code class="code">onOverflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1854,9 +1785,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Throw.onUnderflow"></span>void <code class="code">onUnderflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));
-
-          </code>
+            <span class="ddoc_anchor" id="Throw.onUnderflow"></span>void <code class="code">onUnderflow</code>(T)(T <code class="code">d</code>) if (isInstanceOf!(Decimal, T));</code>
         </p>
       </div>
     </div>
@@ -1884,9 +1813,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="NoOp"></span>struct <code class="code">NoOp</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="NoOp"></span>struct <code class="code">NoOp</code>;</code>
         </p>
       </div>
     </div>
@@ -1921,9 +1848,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="NoOp.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="NoOp.roundingMode"></span>enum Rounding <code class="code">roundingMode</code>;</code>
         </p>
       </div>
     </div>
@@ -1946,9 +1871,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="NoOp.precision"></span>enum uint <code class="code">precision</code>;
-
-          </code>
+            <span class="ddoc_anchor" id="NoOp.precision"></span>enum uint <code class="code">precision</code>;</code>
         </p>
       </div>
     </div>
@@ -1976,9 +1899,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="DivisionByZero"></span>class <code class="code">DivisionByZero</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;
-
-          </code>
+            <span class="ddoc_anchor" id="DivisionByZero"></span>class <code class="code">DivisionByZero</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;</code>
         </p>
       </div>
     </div>
@@ -2006,9 +1927,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="DivisionByZero.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);
-
-          </code>
+            <span class="ddoc_anchor" id="DivisionByZero.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);</code>
         </p>
       </div>
     </div>
@@ -2097,9 +2016,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="DivisionByZero.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);
-
-          </code>
+            <span class="ddoc_anchor" id="DivisionByZero.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);</code>
         </p>
       </div>
     </div>
@@ -2193,9 +2110,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="InvalidOperation"></span>class <code class="code">InvalidOperation</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;
-
-          </code>
+            <span class="ddoc_anchor" id="InvalidOperation"></span>class <code class="code">InvalidOperation</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;</code>
         </p>
       </div>
     </div>
@@ -2223,9 +2138,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="InvalidOperation.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);
-
-          </code>
+            <span class="ddoc_anchor" id="InvalidOperation.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);</code>
         </p>
       </div>
     </div>
@@ -2314,9 +2227,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="InvalidOperation.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);
-
-          </code>
+            <span class="ddoc_anchor" id="InvalidOperation.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);</code>
         </p>
       </div>
     </div>
@@ -2410,9 +2321,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Overflow"></span>class <code class="code">Overflow</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;
-
-          </code>
+            <span class="ddoc_anchor" id="Overflow"></span>class <code class="code">Overflow</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;</code>
         </p>
       </div>
     </div>
@@ -2440,9 +2349,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Overflow.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);
-
-          </code>
+            <span class="ddoc_anchor" id="Overflow.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);</code>
         </p>
       </div>
     </div>
@@ -2531,9 +2438,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Overflow.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);
-
-          </code>
+            <span class="ddoc_anchor" id="Overflow.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);</code>
         </p>
       </div>
     </div>
@@ -2627,9 +2532,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Underflow"></span>class <code class="code">Underflow</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;
-
-          </code>
+            <span class="ddoc_anchor" id="Underflow"></span>class <code class="code">Underflow</code>: <span class="ddoc_psuper_symbol">object.Exception</span>;</code>
         </p>
       </div>
     </div>
@@ -2657,9 +2560,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Underflow.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);
-
-          </code>
+            <span class="ddoc_anchor" id="Underflow.this"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__, Throwable <code class="code">next</code> = null);</code>
         </p>
       </div>
     </div>
@@ -2748,9 +2649,7 @@ As noted in the module overview, using 64 significant digits is much
       <div class="dlang">
         <p class="para">
           <code class="code">
-            <span class="ddoc_anchor" id="Underflow.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);
-
-          </code>
+            <span class="ddoc_anchor" id="Underflow.this.2"></span>pure nothrow @nogc @safe this(string <code class="code">msg</code>, Throwable <code class="code">next</code>, string <code class="code">file</code> = __FILE__, size_t <code class="code">line</code> = __LINE__);</code>
         </p>
       </div>
     </div>
