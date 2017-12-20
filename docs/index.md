@@ -120,7 +120,7 @@ The following table lists all of the conditions
         <tr>
            <td>Clamped</td>
            <td>`clamped`</td>
-           <td>`onClamped` </td>
+           <td>`onClamped`</td>
            <td>Occurs when the exponent has been altered to fit in-between `Hook.maxExponent` and `Hook.minExponent`.</td>
         </tr>
         <tr>
@@ -136,9 +136,9 @@ The following table lists all of the conditions
            <td>Flagged when an operation makes no sense, e.g. multiplying `0` and `Infinity` or add -Infinity to Infinity.</td>
         </tr>
         <tr>
-           <td>Division by Zero)
-           <td>`divisionByZero`)
-           <td>`onDivisionByZero`)
+           <td>Division by Zero</td>
+           <td>`divisionByZero`</td>
+           <td>`onDivisionByZero`</td>
            <td>Specific invalid operation. Occurs whenever the dividend of a division or modulo is equal to zero.</td>
         </tr>
         <tr>
