@@ -724,15 +724,15 @@ public:
      *
      * String_Spec:
      * -------
-     * sign           ::=  ’+’ | ’-’
-     * digit          ::=  ’0’ | ’1’ | ’2’ | ’3’ | ’4’ | ’5’ | ’6’ | ’7’ |
-     *                     ’8’ | ’9’
-     * indicator      ::=  ’e’ | ’E’
+     * sign           ::=  + | -
+     * digit          ::=  0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+     *                     8 | 9
+     * indicator      ::=  e | E
      * digits         ::=  digit [digit]...
-     * decimal-part   ::=  digits ’.’ [digits] | [’.’] digits
+     * decimal-part   ::=  digits . [digits] | [.] digits
      * exponent-part  ::=  indicator [sign] digits
-     * infinity       ::=  ’Infinity’ | ’Inf’
-     * nan            ::=  ’NaN’ [digits]
+     * infinity       ::=  Infinity | Inf
+     * nan            ::=  NaN [digits]
      * numeric-value  ::=  decimal-part [exponent-part] | infinity
      * numeric-string ::=  [sign] numeric-value | [sign] nan
      * -------
@@ -1186,8 +1186,8 @@ public:
             Decimal!(Hook) lhs;
 
             // If the signs of the operands differ, a value representing each
-            // operand (’-1’ if the operand is less than zero, ’0’ if the
-            // operand is zero or negative zero, or ’1’ if the operand is
+            // operand ('-1' if the operand is less than zero, '0' if the
+            // operand is zero or negative zero, or '1' if the operand is
             // greater than zero) is used in place of that operand for the
             // comparison instead of the actual operand.
             if (sign != d.sign)
