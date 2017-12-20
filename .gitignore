@@ -1,7 +1,7 @@
 .dub
 docs.json
 __dummy.html
-docs/
+__main.html
 stdxdecimal.so
 stdxdecimal.dylib
 stdxdecimal.dll
@@ -15,4 +15,5 @@ stdxdecimal-test-*
 *.lst
 *.sublime-*
 bench
+package
 trace.*
