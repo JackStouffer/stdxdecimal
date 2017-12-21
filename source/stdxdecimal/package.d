@@ -811,6 +811,8 @@ public:
             if (!charCheck(digit))
                 goto Lerr;
 
+            // TODO: technically checking what the character is twice,
+            // with charCheck and isDigit etc, just have bool params
             if (isDigit(digit))
             {
                 if (!sawExponent)
@@ -1136,6 +1138,24 @@ public:
         {
             static assert(0, "Not implemented yet");
         }
+    }
+
+    /**
+     * Returns:
+     *     `+` simply returns a copy of `this` unchanged. `-` returns a
+     *     copy of `this` with the sign flipped for everything but `0`
+     *     and `NaN`s.
+     */
+    auto opUnary(string op)()
+        if (op == "-" || op == "+")
+    {
+        auto res = dup();
+
+        static if (op == "-")
+            if ((!isNan && coefficient != 0) || isInf)
+                res.sign = sign == 0 ? 1 : 0;
+
+        return res;
     }
 
     // goes against D's normal nan rules because they're really annoying when
@@ -1909,6 +1929,44 @@ unittest
     assert(decimal("22.000") == decimal("22"));
     assert(decimal("22.000") == 22);
     assert(decimal("22.2") == 22.2);
+}
+
+// unary
+@system
+unittest
+{
+    auto testPlusValues = [
+        ["1", "1"],
+        ["0", "0"],
+        ["00.00", "0.00"],
+        ["-2000000", "-2000000"],
+        ["Inf", "Infinity"],
+        ["NaN", "NaN"],
+        ["-NaN", "-NaN"],
+    ];
+
+    auto testMinusValues = [
+        ["1", "-1"],
+        ["-1", "1"],
+        ["0.00", "0.00"],
+        ["-2000000", "2000000"],
+        ["Inf", "-Infinity"],
+        ["NaN", "NaN"],
+        ["-NaN", "-NaN"]
+    ];
+
+    foreach (el; testPlusValues)
+    {
+        auto d1 = decimal!(NoOp)(el[0]);
+        auto d2 = +d1;
+        assert(d2.toString == el[1]);
+    }
+    foreach (el; testMinusValues)
+    {
+        auto d1 = decimal!(NoOp)(el[0]);
+        auto d2 = -d1;
+        assert(d2.toString == el[1]);
+    }
 }
 
 // to string
