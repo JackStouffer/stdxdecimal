@@ -2556,6 +2556,24 @@ class Underflow : Exception
     }
 }
 
+/**
+ * Returns: The given decimal with a positive sign
+ */
+auto abs(D)(D d) if (isInstanceOf!(Decimal, D))
+{
+    if (d.sign == 1)
+        return -d;
+    return d;
+}
+
+///
+unittest
+{
+    assert(abs(decimal("1.00")) == decimal("1.00"));
+    assert(abs(decimal("-1.00")) == decimal("1.00"));
+    assert(abs(decimal("-0.0002")) == decimal("0.0002"));
+}
+
 private:
 
 /*

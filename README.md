@@ -51,11 +51,13 @@ Addition | ✓
 Subtraction | ✓
 Multiply | ✓
 Divide | ✓
+Divide-Integer | ❌
 Modulo | ❌
+DivMod | ❌
 opOpAssign `+`,`-`,`*`,`/`,`^^` | ❌
-Unary `+`,`-`,`++`,`--` | ❌
+Unary `+`,`-`,`++`,`--` | ✓
 opCast `int`,`real`,`bool` | ❌
-abs | ❌
+abs | ✓
 ln | ❌
 log10 | ❌
 exp | ❌
