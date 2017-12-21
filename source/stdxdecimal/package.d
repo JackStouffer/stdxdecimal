@@ -725,8 +725,7 @@ public:
      * String_Spec:
      * -------
      * sign           ::=  + | -
-     * digit          ::=  0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
-     *                     8 | 9
+     * digit          ::=  0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
      * indicator      ::=  e | E
      * digits         ::=  digit [digit]...
      * decimal-part   ::=  digits . [digits] | [.] digits
@@ -772,7 +771,7 @@ public:
         bool sawExponent = false;
         bool sawExponentSign = false;
         byte exponentSign;
-        long sciExponent = 0;
+        int sciExponent = 0;
 
         if (frontResult == '+')
         {
@@ -951,6 +950,8 @@ public:
     {
         static if (isNumeric!T)
         {
+            // TODO: What happens when rhs is something like ulong.max - 1
+            // shouldn't round rhs before doing operation, change Hook
             auto temp = decimal(rhs);
             return mixin("this " ~ op ~ "= temp");
         }
@@ -1167,10 +1168,11 @@ public:
     ref Decimal!(Hook) opUnary(string op)()
         if (op == "++" || op == "--")
     {
+        static immutable one = decimal(1);
         static if (op == "++")
-            this += 1;
+            this += one;
         else
-            this -= 1;
+            this -= one;
 
         return this;
     }
@@ -1302,6 +1304,9 @@ public:
      * For `bool`, follows the normal `cast(bool)` rules in D. Numbers `<= -1`
      * returns `true`, numbers between `-1` and `1` return false, numbers `>= 1`
      * return `true`.
+     *
+     * For floating point types, returns a floating point type as close to the
+     * decimal as possible.
      */
     auto opCast(T)() const
         if (is(T == bool) || isNumeric!T)
@@ -1315,6 +1320,23 @@ public:
                 return true;
 
             return false;
+        }
+        else static if (isFloatingPoint!T)
+        {
+            if (isInf && sign == 0)
+                return T.infinity;
+            if (isInf && sign == 1)
+                return -T.infinity;
+            if (isNan && sign == 0)
+                return T.nan;
+            if (isNan && sign == 1)
+                return -T.nan;
+
+            T res = coefficient;
+            res *= 10.0 ^^ exponent;
+            if (sign == 1)
+                res *= -1;
+            return res;
         }
         else
         {
@@ -2050,6 +2072,8 @@ unittest
 @system pure nothrow
 unittest
 {
+    import std.math : approxEqual, isNaN;
+
     assert((cast(bool) decimal("0.0")) == false);
     assert((cast(bool) decimal("0.5")) == false);
     assert((cast(bool) decimal("-0.5")) == false);
@@ -2061,6 +2085,13 @@ unittest
     assert((cast(bool) decimal("-Infinity")) == true);
     assert((cast(bool) decimal("-NaN")) == true);
     assert((cast(bool) decimal("NaN")) == true);
+
+    assert((cast(real) decimal("0.0")).approxEqual(0));
+    assert((cast(real) decimal("0.0123")).approxEqual(0.0123));
+    assert((cast(real) decimal("123")).approxEqual(123.0));
+    assert((cast(real) decimal("10.8888")).approxEqual(10.8888));
+    assert(isNaN((cast(real) decimal("NaN"))));
+    assert((cast(real) decimal("Inf")) == real.infinity);
 }
 
 // to string
