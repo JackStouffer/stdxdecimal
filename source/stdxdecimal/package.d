@@ -1332,7 +1332,28 @@ public:
             if (isNan && sign == 1)
                 return -T.nan;
 
-            T res = coefficient;
+            static if (useBigInt)
+            {
+                import std.bigint : toDecimalString;
+                import std.conv : to;
+                // this really needs to be reworked, the problem really
+                // is that both BigInt and uint128 both cast to ints but
+                // not to floats, and casting to ints cuts off more than
+                // half of the number, this method however gets pretty close
+                // to the equivalent floating point representation of the
+                // decimal
+                T res = coefficient.toDecimalString.to!T;
+            }
+            else static if (useU128)
+            {
+                import std.conv : to;
+                T res = coefficient.to!string.to!T;
+            }
+            else
+            {
+                T res = coefficient;
+            }
+            
             res *= 10.0 ^^ exponent;
             if (sign == 1)
                 res *= -1;
@@ -2069,7 +2090,7 @@ unittest
 }
 
 // opCast
-@system pure nothrow
+@system
 unittest
 {
     import std.math : approxEqual, isNaN;
@@ -2091,7 +2112,23 @@ unittest
     assert((cast(real) decimal("123")).approxEqual(123.0));
     assert((cast(real) decimal("10.8888")).approxEqual(10.8888));
     assert(isNaN((cast(real) decimal("NaN"))));
+    assert(isNaN((cast(real) decimal("-NaN"))));
     assert((cast(real) decimal("Inf")) == real.infinity);
+    assert((cast(real) decimal("-Inf")) == -real.infinity);
+
+    static struct CustomHook
+    {
+        enum Rounding roundingMode = Rounding.HalfUp;
+        enum uint precision = 19;
+    }
+
+    assert((
+        cast(real) decimal!(CustomHook)("12345678910111.213")
+    ).approxEqual(12345678910111.213));
+
+    assert((
+        cast(real) decimal!(HighPrecision)("12345678910111213141516.1718192021")
+    ).approxEqual(12345678910111213141516.1718192021));
 }
 
 // to string
