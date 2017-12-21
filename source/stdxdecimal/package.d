@@ -659,7 +659,7 @@ public:
      *     representation due to floating point inaccuracy. If possible, it's always
      *     better to use string construction.
      */
-    this(T)(const T num) pure if (isNumeric!T)
+    this(T)(const T num) pure if (isNumeric!T) // for some reason doesn't infer pure
     {
         // the behavior of conversion from built-in number types
         // isn't covered by the spec, so we can do whatever we
@@ -1145,8 +1145,10 @@ public:
      *     `+` simply returns a copy of `this` unchanged. `-` returns a
      *     copy of `this` with the sign flipped for everything but `0`
      *     and `NaN`s.
+     *
+     *     Does not modify the decimal in place.
      */
-    auto opUnary(string op)()
+    auto opUnary(string op)() const
         if (op == "-" || op == "+")
     {
         auto res = dup();
@@ -1156,6 +1158,21 @@ public:
                 res.sign = sign == 0 ? 1 : 0;
 
         return res;
+    }
+
+    /**
+     * Modifies the decimal in place by adding or subtracting 1 for
+     * `++` and `--` respectively.
+     */
+    ref Decimal!(Hook) opUnary(string op)()
+        if (op == "++" || op == "--")
+    {
+        static if (op == "++")
+            this += 1;
+        else
+            this -= 1;
+
+        return this;
     }
 
     // goes against D's normal nan rules because they're really annoying when
@@ -1932,7 +1949,7 @@ unittest
 }
 
 // unary
-@system
+@system pure nothrow
 unittest
 {
     auto testPlusValues = [
@@ -1955,6 +1972,30 @@ unittest
         ["-NaN", "-NaN"]
     ];
 
+    auto testPlusPlusValues = [
+        ["1", "2"],
+        ["-1", "0"],
+        ["0.00", "1.00"],
+        ["1.0000001", "2.0000001"],
+        ["-2000000", "-1999999"],
+        ["Inf", "Infinity"],
+        ["-Inf", "-Infinity"],
+        ["NaN", "NaN"],
+        ["-NaN", "-NaN"]
+    ];
+
+    auto testMinusMinusValues = [
+        ["1", "0"],
+        ["-1", "-2"],
+        ["1.00", "0.00"],
+        ["1.0000001", "0.0000001"],
+        ["-2000000", "-2000001"],
+        ["Inf", "Infinity"],
+        ["-Inf", "-Infinity"],
+        ["NaN", "NaN"],
+        ["-NaN", "-NaN"]
+    ];
+
     foreach (el; testPlusValues)
     {
         auto d1 = decimal!(NoOp)(el[0]);
@@ -1966,6 +2007,18 @@ unittest
         auto d1 = decimal!(NoOp)(el[0]);
         auto d2 = -d1;
         assert(d2.toString == el[1]);
+    }
+    foreach (el; testPlusPlusValues)
+    {
+        auto d1 = decimal!(NoOp)(el[0]);
+        ++d1;
+        assert(d1.toString == el[1]);
+    }
+    foreach (el; testMinusMinusValues)
+    {
+        auto d1 = decimal!(NoOp)(el[0]);
+        --d1;
+        assert(d1.toString == el[1]);
     }
 }
 
