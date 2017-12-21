@@ -1299,6 +1299,30 @@ public:
     }
 
     /**
+     * For `bool`, follows the normal `cast(bool)` rules in D. Numbers `<= -1`
+     * returns `true`, numbers between `-1` and `1` return false, numbers `>= 1`
+     * return `true`.
+     */
+    auto opCast(T)() const
+        if (is(T == bool) || isNumeric!T)
+    {
+        static if (is(T == bool))
+        {
+            if (isNan || isInf)
+                return true;
+
+            if (this <= decimal(-1) || this >= decimal(1))
+                return true;
+
+            return false;
+        }
+        else
+        {
+            static assert(0, "Not Implemented");
+        }
+    }
+
+    /**
      * Convenience function to reset all exceptional condition flags to `false` at once
      */
     void resetFlags() @safe @nogc pure nothrow
@@ -2020,6 +2044,23 @@ unittest
         --d1;
         assert(d1.toString == el[1]);
     }
+}
+
+// opCast
+@system pure nothrow
+unittest
+{
+    assert((cast(bool) decimal("0.0")) == false);
+    assert((cast(bool) decimal("0.5")) == false);
+    assert((cast(bool) decimal("-0.5")) == false);
+    assert((cast(bool) decimal("-1.0")) == true);
+    assert((cast(bool) decimal("1.0")) == true);
+    assert((cast(bool) decimal("1.1")) == true);
+    assert((cast(bool) decimal("-1.1")) == true);
+    assert((cast(bool) decimal("Infinity")) == true);
+    assert((cast(bool) decimal("-Infinity")) == true);
+    assert((cast(bool) decimal("-NaN")) == true);
+    assert((cast(bool) decimal("NaN")) == true);
 }
 
 // to string
