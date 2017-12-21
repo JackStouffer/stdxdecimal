@@ -9,7 +9,7 @@
  * represent all possible numbers with a decimal part (limited by memory size and `Hook`).
  *
  * Adapted from the specification of the
- * $(HTTP http://speleotrove.com/decimal/decarith.html, General Decimal Arithmetic).
+ * $(HTTP speleotrove.com/decimal/decarith.html, General Decimal Arithmetic).
  *
  * Basic_Example:
  * ---
