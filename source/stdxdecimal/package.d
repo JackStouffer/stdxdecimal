@@ -1221,56 +1221,25 @@ public:
                 return -1;
             if (!isNan && d.isNan)
                 return 1;
+            if (sign != d.sign && coefficient != 0 && d.coefficient != 0)
+                return sign ? -1 : 1;
+            if (coefficient == d.coefficient && coefficient == 0)
+                return 0;
 
-            Decimal!(Hook) lhs;
-
-            // If the signs of the operands differ, a value representing each
-            // operand ('-1' if the operand is less than zero, '0' if the
-            // operand is zero or negative zero, or '1' if the operand is
-            // greater than zero) is used in place of that operand for the
-            // comparison instead of the actual operand.
-            if (sign != d.sign)
+            static if (useBigInt && d.useBigInt)
             {
-                if (sign == 0)
-                {
-                    if (coefficient > 0)
-                        lhs.coefficient = 1;
-                }
-                else
-                {
-                    if (coefficient > 0)
-                    {
-                        lhs.sign = 1;
-                        lhs.coefficient = 1;
-                    }
-                }
-
-                if (d.sign == 0)
-                {
-                    if (d.coefficient > 0)
-                        d.coefficient = 1;
-                }
-                else
-                {
-                    if (d.coefficient > 0)
-                    {
-                        d.sign = 1;
-                        d.coefficient = 1;
-                    }
-                }
-            }
-            else
-            {
-                lhs.sign = sign;
-                lhs.coefficient = coefficient;
-                lhs.exponent = exponent;
+                auto len1 = coefficient.ulongLength;
+                auto len2 = d.coefficient.ulongLength;
+                if (len1 != len2 && exponent >= d.exponent)
+                    return (len1 > len2) ?  1 : -1;
             }
 
-            const res = lhs.addImpl!("-", false)(d);
+            auto lhs = dup();
+            lhs.addImpl!("-", false)(d);
 
-            if (res.sign == 0)
+            if (lhs.sign == 0)
             {
-                if (res.coefficient == 0)
+                if (lhs.coefficient == 0)
                     return 0;
                 else
                     return 1;
@@ -2006,6 +1975,11 @@ unittest
         assert(v1.opCmp(v2) == el.expected);
         assert(v1.invalidOperation == el.invalidOperation);
     }
+
+    // test custom bigint behavior
+    auto d1 = decimal!(HighPrecision)("10000000000000000000");
+    auto d2 = decimal!(HighPrecision)("120000000000.0000");
+    assert(d1.opCmp(d2) == 1);
 
     // make sure equals compiles, already covered behavior in
     // cmp tests
