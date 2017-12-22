@@ -220,6 +220,7 @@ version(unittest) { import std.stdio; }
 import std.format : FormatSpec;
 import std.range.primitives;
 import std.traits;
+import std.bigint;
 
 /**
  * A exact decimal type, accurate to `Hook.precision` digits. Designed to be a
@@ -283,7 +284,6 @@ package:
     // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
     static if (useBigInt)
     {
-        import std.bigint : BigInt;
         BigInt coefficient;
     }
     else static if (useU128)
@@ -1278,32 +1278,38 @@ public:
      * decimal as possible.
      */
     auto opCast(T)() const
-        if (is(T == bool) || isNumeric!T)
+        if (is(T == bool) || isFloatingPoint!T)
     {
         static if (is(T == bool))
         {
+            static immutable negone = decimal(-1);
+            static immutable one = decimal(1);
+
             if (isNan || isInf)
                 return true;
 
-            if (this <= decimal(-1) || this >= decimal(1))
+            if (this <= negone || this >= one)
                 return true;
 
             return false;
         }
-        else static if (isFloatingPoint!T)
+        else
         {
-            if (isInf && sign == 0)
-                return T.infinity;
-            if (isInf && sign == 1)
+            if (isInf)
+            {
+                if (sign == 0)
+                    return T.infinity;
                 return -T.infinity;
-            if (isNan && sign == 0)
-                return T.nan;
-            if (isNan && sign == 1)
+            }
+            if (isNan)
+            {
+                if (sign == 0)
+                    return T.nan;
                 return -T.nan;
+            }
 
             static if (useBigInt)
             {
-                import std.bigint : toDecimalString;
                 import std.conv : to;
                 // this really needs to be reworked, the problem really
                 // is that both BigInt and uint128 both cast to ints but
@@ -1327,10 +1333,6 @@ public:
             if (sign == 1)
                 res *= -1;
             return res;
-        }
-        else
-        {
-            static assert(0, "Not Implemented");
         }
     }
 
