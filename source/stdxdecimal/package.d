@@ -78,7 +78,7 @@
  *
  *     `Hook.precision` must be `<= uint.max - 1` and `> 1`.
  *
- * Note:
+ * Notes_On_Speed:
  *     Increasing the number of possible significant digits can result in orders
  *     of magnitude slower behavior, as described below. Only ask for as many digits
  *     as you really need.
@@ -200,7 +200,8 @@
  *
  * Differences_From_The_Specification:
  *     $(UL
- *         $(LI There's no concept of a Signaling NaN in the module.)
+ *         $(LI There's no concept of a Signaling NaN in this module.)
+ *         $(LI There's no concept of a Diagnostic NaN in this module.)
  *         $(LI `compare`, implemented as `opCmp`, does not propagate `NaN` due
  *         to D's `opCmp` semantics.)
  *     )
@@ -803,6 +804,10 @@ public:
             return;
         }
 
+        // leading zeros
+        while (!str.empty && str.front == '0')
+            str.popFront;
+
         for (; !str.empty; str.popFront)
         {
             auto digit = str.front;
@@ -1321,8 +1326,7 @@ public:
             }
             else static if (useU128)
             {
-                import std.conv : to;
-                T res = coefficient.to!string.to!T;
+                T res = cast(real) coefficient;
             }
             else
             {
@@ -3134,6 +3138,14 @@ struct wideIntImpl(bool signed, int bits)
             return cast(T)lo;
         else
             return T(this);
+    }
+
+    static if (bits == 128)
+    {
+        T opCast(T)() @nogc pure const nothrow if (isFloatingPoint!T)
+        {
+            return (T(hi_t.max) * T(hi)) + T(lo);
+        }
     }
 
     /// Converts to a string. Supports format specifiers %d, %s (both decimal)
