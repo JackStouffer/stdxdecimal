@@ -2639,10 +2639,28 @@ bool isNaN(D)(const D d) if (isInstanceOf!(Decimal, D))
     return d.isNan;
 }
 
+///
+@safe pure nothrow @nogc unittest
+{
+    assert( isNaN(decimal("NaN")));
+    assert( isNaN(decimal("-NaN")));
+    assert(!isNaN(decimal("Inf")));
+    assert(!isNaN(decimal("1.001")));
+}
+
 /// Returns: If this decimal represents positive or negative infinity
 bool isInfinity(D)(const D d) if (isInstanceOf!(Decimal, D))
 {
     return d.isInf;
+}
+
+///
+@safe pure nothrow @nogc unittest
+{
+    assert( isInfinity(decimal("Inf")));
+    assert( isInfinity(decimal("-Inf")));
+    assert(!isInfinity(decimal("NaN")));
+    assert(!isInfinity(decimal("1.001")));
 }
 
 /// Returns: The given decimal with a positive sign
@@ -3142,7 +3160,12 @@ struct wideIntImpl(bool signed, int bits)
     {
         T opCast(T)() @nogc pure const nothrow if (isFloatingPoint!T)
         {
-            return (T(hi_t.max) * T(hi)) + T(lo);
+            return (T(hi_t.max) * T(hi)) + T(lo) + T(hi);
+        }
+
+        T opCast(T)() const pure nothrow if (is(T : BigInt))
+        {
+            return (T(hi_t.max) * T(hi)) + lo + hi;
         }
     }
 
