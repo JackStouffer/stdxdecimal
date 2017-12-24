@@ -1382,18 +1382,6 @@ public:
         return dup!()();
     }
 
-    /// Returns: If this decimal represents a positive or negative NaN
-    bool isNaN() const @property @safe @nogc pure nothrow
-    {
-        return isNan;
-    }
-
-    /// Returns: If this decimal represents positive or negative infinity
-    bool isInfinity() const @property @safe @nogc pure nothrow
-    {
-        return isInf;
-    }
-
     /// Returns: A decimal representing a positive NaN
     static Decimal!(Hook) nan()() @property
     {
@@ -2645,10 +2633,20 @@ class Underflow : Exception
     }
 }
 
-/**
- * Returns: The given decimal with a positive sign
- */
-auto abs(D)(D d) if (isInstanceOf!(Decimal, D))
+/// Returns: If this decimal represents a positive or negative NaN
+bool isNaN(D)(const D d) if (isInstanceOf!(Decimal, D))
+{
+    return d.isNan;
+}
+
+/// Returns: If this decimal represents positive or negative infinity
+bool isInfinity(D)(const D d) if (isInstanceOf!(Decimal, D))
+{
+    return d.isInf;
+}
+
+/// Returns: The given decimal with a positive sign
+auto abs(D)(const D d) if (isInstanceOf!(Decimal, D))
 {
     if (d.sign == 1)
         return -d;
