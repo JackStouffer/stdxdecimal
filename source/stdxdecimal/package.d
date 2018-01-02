@@ -753,12 +753,6 @@ public:
             return a.map!toLower.equal(b.byChar.map!toLower);
         }
 
-        // valid characters in non-special number strings
-        static bool charCheck(dchar a)
-        {
-            return isDigit(a) || a == 'E' || a == 'e' || a == '-' || a == '+' || a == '.';
-        }
-
         // TODO: filter out underscores
 
         if (str.empty)
@@ -812,11 +806,6 @@ public:
         {
             auto digit = str.front;
 
-            if (!charCheck(digit))
-                goto Lerr;
-
-            // TODO: technically checking what the character is twice,
-            // with charCheck and isDigit etc, just have bool params
             if (isDigit(digit))
             {
                 if (!sawExponent)
@@ -855,6 +844,8 @@ public:
                         return;
                     }
                 }
+
+                continue;
             }
 
             if (digit == '+' || digit == '-')
@@ -873,6 +864,8 @@ public:
                 { // no exponent yet, bad input so cancel out
                     goto Lerr;
                 }
+
+                continue;
             }
 
             if (digit == '.')
@@ -882,6 +875,7 @@ public:
                     goto Lerr;
 
                 sawDecimal = true;
+                continue;
             }
 
             if (digit.toLower == 'e')
@@ -891,7 +885,10 @@ public:
                     goto Lerr;
 
                 sawExponent = true;
+                continue;
             }
+
+            goto Lerr;
         }
 
         round();
