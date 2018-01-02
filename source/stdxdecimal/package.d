@@ -313,20 +313,20 @@ package:
 
         Inexact is set if the rounded digits were non-zero
      */
-    auto round()
+    auto round(T)(T num)
     {
         static if (hook.precision < 20)
         {
             enum ulong max = 10UL ^^ hook.precision;
-            if (coefficient < max)
-                return;
+            if (num < max)
+                return num;
         }
 
-        auto digits = numberOfDigits(coefficient);
+        auto digits = numberOfDigits(num);
         if (digits <= hook.precision)
-            return;
+            return num;
 
-        typeof(coefficient) lastDigit;
+        T lastDigit;
         static if (useU128)
         {
             uint128 q = void;
@@ -342,15 +342,15 @@ package:
             {
                 static if (useU128)
                 {
-                    Internals!(128).unsignedDivide(coefficient, x, q, lastDigit);
-                    coefficient = q;
+                    Internals!(128).unsignedDivide(num, x, q, lastDigit);
+                    num = q;
                 }
                 else
                 {
                     if (!inexact)
-                        lastDigit = coefficient % 10;
+                        lastDigit = num % 10;
 
-                    coefficient /= 10;
+                    num /= 10;
                 }
 
                 --digits;
@@ -366,15 +366,15 @@ package:
             {
                 static if (useU128)
                 {
-                    Internals!(128).unsignedDivide(coefficient, x, q, lastDigit);
-                    coefficient = q;
+                    Internals!(128).unsignedDivide(num, x, q, lastDigit);
+                    num = q;
                 }
                 else
                 {
                     if (!inexact)
-                        lastDigit = coefficient % 10;
+                        lastDigit = num % 10;
 
-                    coefficient /= 10;
+                    num /= 10;
                 }
 
                 --digits;
@@ -386,7 +386,7 @@ package:
 
             // If all of the discarded digits are zero the result is unchanged
             if (inexact)
-                ++coefficient;
+                ++num;
         }
         else static if (hook.roundingMode == Rounding.HalfUp)
         {
@@ -394,15 +394,15 @@ package:
             {
                 static if (useU128)
                 {
-                    Internals!(128).unsignedDivide(coefficient, x, q, lastDigit);
-                    coefficient = q;
+                    Internals!(128).unsignedDivide(num, x, q, lastDigit);
+                    num = q;
                 }
                 else
                 {
                     if (!inexact)
-                        lastDigit = coefficient % 10;
+                        lastDigit = num % 10;
 
-                    coefficient /= 10;
+                    num /= 10;
                 }
 
                 --digits;
@@ -414,13 +414,13 @@ package:
 
             static if (useU128)
             {
-                Internals!(128).unsignedDivide(coefficient, x, q, lastDigit);
-                coefficient = q;
+                Internals!(128).unsignedDivide(num, x, q, lastDigit);
+                num = q;
             }
             else
             {
-                lastDigit = coefficient % 10;
-                coefficient /= 10;
+                lastDigit = num % 10;
+                num /= 10;
             }
 
             if (lastDigit != 0)
@@ -428,7 +428,7 @@ package:
             ++exponent;
 
             if (lastDigit >= 5)
-                ++coefficient;
+                ++num;
         }
         else
         {
@@ -444,7 +444,7 @@ package:
         static if (hasRoundedMethod)
             hook.onRounded(this);
 
-        return;
+        return num;
     }
 
     /*
@@ -617,7 +617,7 @@ package:
         }
 
         static if (doRound)
-            round();
+            coefficient = round(coefficient);
 
         return this;
     }
@@ -709,7 +709,7 @@ public:
             coefficient = cast(size_t) val;
         }
 
-        round();
+        coefficient = round(coefficient);
     }
 
     /**
@@ -840,7 +840,7 @@ public:
 
                     if (str.empty)
                     {
-                        round();
+                        coefficient = round(coefficient);
                         return;
                     }
                 }
@@ -891,7 +891,7 @@ public:
             goto Lerr;
         }
 
-        round();
+        coefficient = round(coefficient);
         return;
 
         Lerr:
@@ -1013,7 +1013,7 @@ public:
             coefficient = coefficient * rhs.coefficient;
             exponent = exponent + rhs.exponent;
 
-            round();
+            coefficient = round(coefficient);
             return this;
         }
         else static if (op == "/")
@@ -1134,7 +1134,7 @@ public:
 
             coefficient = res;
             exponent = exponent - (rhs.exponent + adjust);
-            round();
+            coefficient = round(coefficient);
             return this;
         }
         else
