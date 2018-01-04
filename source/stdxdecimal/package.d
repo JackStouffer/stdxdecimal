@@ -1,4 +1,16 @@
 /**
+ * Quick_Start:
+ * ---
+ * import stdxdecimal;
+ *
+ * void main()
+ * {
+ *     auto d1 = decimal("1.23E-10");
+ *     d1 -= decimal("2.00E-10");
+ *     assert(d1.toString() == "-0.000000000077");
+ * }
+ * ---
+ *
  * This module defines an exact decimal type, `Decimal`, to a specific number of digits.
  * This is designed to be a drop in replacement for built-in floating point numbers,
  * allowing all the same possible operations.
@@ -10,18 +22,6 @@
  *
  * Adapted from the specification of the
  * $(HTTP speleotrove.com/decimal/decarith.html, General Decimal Arithmetic).
- *
- * Basic_Example:
- * ---
- * import stdxdecimal;
- *
- * void main()
- * {
- *     auto d1 = decimal("1.23E-10");
- *     d1 -= decimal("2.00E-10");
- *     assert(d1.toString() == "-0.000000000077");
- * }
- * ---
  *
  * Custom_Behavior:
  *     The behavior of `Decimal` is controlled by the template parameter `Hook`,
@@ -101,6 +101,11 @@
  *             $(TD 200x slower than baseline)
  *         )
  *     )
+ *
+ *     Further, while it's possible to mix and match precisions in the various operations,
+ *     in this module, it results in a notable slow-down relative to the operation's
+ *     speed with two similar precisions. It's recommended that the user stick to one precision
+ *     throughout the program to avoid these issues.
  *
  * Exceptional_Conditions:
  *     Certain operations will cause a `Decimal` to enter into an invalid state,
@@ -222,6 +227,7 @@ import std.format : FormatSpec;
 import std.range.primitives;
 import std.traits;
 import std.bigint;
+import std.conv;
 
 /**
  * A exact decimal type, accurate to `Hook.precision` digits. Designed to be a
@@ -327,7 +333,7 @@ package:
             return num;
 
         T lastDigit;
-        static if (useU128)
+        static if (is(T == uint128))
         {
             uint128 q = void;
             uint128 x = uint128.literal!"10";
@@ -340,7 +346,7 @@ package:
         {
             while (digits > hook.precision)
             {
-                static if (useU128)
+                static if (is(T == uint128))
                 {
                     Internals!(128).unsignedDivide(num, x, q, lastDigit);
                     num = q;
@@ -364,7 +370,7 @@ package:
         {
             while (digits > hook.precision)
             {
-                static if (useU128)
+                static if (is(T == uint128))
                 {
                     Internals!(128).unsignedDivide(num, x, q, lastDigit);
                     num = q;
@@ -392,7 +398,7 @@ package:
         {
             while (digits > hook.precision + 1)
             {
-                static if (useU128)
+                static if (is(T == uint128))
                 {
                     Internals!(128).unsignedDivide(num, x, q, lastDigit);
                     num = q;
@@ -412,7 +418,7 @@ package:
                     inexact = true;
             }
 
-            static if (useU128)
+            static if (is(T == uint128))
             {
                 Internals!(128).unsignedDivide(num, x, q, lastDigit);
                 num = q;
@@ -455,9 +461,7 @@ package:
     {
         import std.algorithm.comparison : min;
         import std.math : abs;
-
-        static if (!useBigInt)
-            import core.checkedint : mulu;
+        import core.checkedint : mulu;
 
         bool rhsSign;
 
@@ -534,8 +538,14 @@ package:
             return this;
         }
 
-        Unqual!(typeof(coefficient)) alignedCoefficient = coefficient;
-        Unqual!(typeof(rhs.coefficient)) rhsAlignedCoefficient = rhs.coefficient;
+        static if (hook.precision == rhs.hook.precision)
+            alias AlignType = Unqual!(typeof(coefficient));
+        else
+            alias AlignType = BigInt;
+
+        alias CoffType = typeof(coefficient);
+        AlignType alignedCoefficient = cast(AlignType) coefficient;
+        AlignType rhsAlignedCoefficient = cast(AlignType) rhs.coefficient;
 
         if (exponent != rhs.exponent)
         {
@@ -546,11 +556,7 @@ package:
             {
                 diff = abs(exponent - rhs.exponent);
 
-                static if (useBigInt || useU128)
-                {
-                    alignedCoefficient *= 10 ^^ diff;
-                }
-                else
+                static if (is(AlignType : ulong))
                 {
                     alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
                     // the Overflow condition is only raised if exponents are incorrect,
@@ -558,20 +564,24 @@ package:
                     if (overflow)
                         assert(0, "Arithmetic operation failed due to coefficient overflow");
                 }
+                else
+                {
+                    alignedCoefficient *= 10 ^^ diff;
+                }
             }
             else
             {
                 diff = abs(rhs.exponent - exponent);
 
-                static if (useBigInt || useU128)
-                {
-                    rhsAlignedCoefficient *= 10 ^^ diff;
-                }
-                else
+                static if (is(AlignType : ulong))
                 {
                     rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
                     if (overflow)
                         assert(0, "Arithmetic operation failed due to coefficient overflow");
+                }
+                else
+                {
+                    rhsAlignedCoefficient *= 10 ^^ diff;
                 }
             }
         }
@@ -581,16 +591,36 @@ package:
         if (sign == rhsSign)
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
-                coefficient = alignedCoefficient + rhsAlignedCoefficient;
+            {
+                static if (hook.precision == rhs.hook.precision)
+                    coefficient = alignedCoefficient + rhsAlignedCoefficient;
+                else
+                    coefficient = to!(CoffType)(round(alignedCoefficient + rhsAlignedCoefficient));
+            }
             else
-                coefficient = rhsAlignedCoefficient + alignedCoefficient;
+            {
+                static if (hook.precision == rhs.hook.precision)
+                    coefficient = rhsAlignedCoefficient + alignedCoefficient;
+                else
+                    coefficient = to!(CoffType)(round(rhsAlignedCoefficient + alignedCoefficient));
+            }
         }
         else
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
-                coefficient = alignedCoefficient - rhsAlignedCoefficient;
+            {
+                static if (hook.precision == rhs.hook.precision)
+                    coefficient = alignedCoefficient - rhsAlignedCoefficient;
+                else
+                    coefficient = to!(CoffType)(round(alignedCoefficient - rhsAlignedCoefficient));
+            }
             else
-                coefficient = rhsAlignedCoefficient - alignedCoefficient;
+            {
+                static if (hook.precision == rhs.hook.precision)
+                    coefficient = rhsAlignedCoefficient - alignedCoefficient;
+                else
+                    coefficient = to!(CoffType)(round(rhsAlignedCoefficient - alignedCoefficient));
+            }
         }
 
         exponent = min(exponent, rhs.exponent);
@@ -1195,7 +1225,7 @@ public:
      *     `0`, `-1` if the result is less than `0`, and `1` if the result is
      *     greater than zero
      */
-    int opCmp(T)(T d) const if (isNumeric!T || is(Unqual!T == Decimal))
+    int opCmp(T)(const auto ref T d) const
     {
         static if (!isNumeric!T)
         {
@@ -1228,12 +1258,10 @@ public:
             if (coefficient == d.coefficient && coefficient == 0)
                 return 0;
 
-            static if (useBigInt && d.useBigInt)
+            static if ((useBigInt || useU128) && (d.useBigInt || useU128 == d.useU128))
             {
-                auto len1 = coefficient.ulongLength;
-                auto len2 = d.coefficient.ulongLength;
-                if (len1 != len2 && exponent >= d.exponent)
-                    return (len1 > len2) ?  1 : -1;
+                if (exponent >= d.exponent)
+                    return coefficient.opCmp(d.coefficient);
             }
 
             auto lhs = dup();
@@ -1266,15 +1294,15 @@ public:
     }
 
     /// Returns: `true` if `opCmp` would return `0`
-    bool opEquals(T)(T d) const if (isNumeric!T || is(Unqual!T == Decimal))
+    bool opEquals(T)(T d) const
     {
         return this.opCmp(d) == 0;
     }
 
     /**
-     * For `bool`, follows the normal `cast(bool)` rules in D. Numbers `<= -1`
-     * returns `true`, numbers between `-1` and `1` return false, numbers `>= 1`
-     * return `true`.
+     * For `bool`, follows the normal `cast(bool)` rules for floats in D.
+     * Numbers `<= -1` returns `true`, numbers between `-1` and `1` return
+     * false, numbers `>= 1` return `true`.
      *
      * For floating point types, returns a floating point type as close to the
      * decimal as possible.
@@ -1967,11 +1995,6 @@ unittest
         assert(v1.invalidOperation == el.invalidOperation);
     }
 
-    // test custom bigint behavior
-    auto d1 = decimal!(HighPrecision)("10000000000000000000");
-    auto d2 = decimal!(HighPrecision)("120000000000.0000");
-    assert(d1.opCmp(d2) == 1);
-
     // make sure equals compiles, already covered behavior in
     // cmp tests
     assert(decimal("19.9999") != decimal("21.222222"));
@@ -2294,6 +2317,32 @@ unittest
     assert(d4.toString() == "10000000000000010");
 }
 
+// mixing of different precisions
+@system
+unittest
+{
+    static struct CustomHook
+    {
+        enum Rounding roundingMode = Rounding.HalfUp;
+        enum uint precision = 19;
+    }
+
+    auto d1 = decimal!(HighPrecision)("10000000000000000000");
+    auto d2 = decimal!(HighPrecision)("120000000000.0000");
+    auto d3 = decimal!(NoOp)("10000.00");
+    auto d4 = decimal!(CustomHook)("120000000000.0000");
+    auto d5 = d1 - d4;
+    auto d6 = d4 - d1;
+    auto d7 = d1 - d3;
+
+    assert(d1.opCmp(d2) == 1);
+    assert(d1.opCmp(d3) == 1);
+    assert(d3.opCmp(d4) == -1);
+    assert(d5 == decimal!(HighPrecision)("9999999880000000000.0000"));
+    assert(d6 == decimal!(CustomHook)("-9999999880000000000.0000"));
+    assert(d7 == decimal!(HighPrecision)("9999999999999990000.00"));
+}
+
 /**
  * Factory function
  */
@@ -2306,7 +2355,7 @@ if ((isForwardRange!R &&
 }
 
 ///
-unittest
+@safe pure unittest
 {
     auto d1 = decimal(5.5);
     assert(d1.toString == "5.5");
@@ -2987,9 +3036,21 @@ struct wideIntImpl(bool signed, int bits)
     }
 
     /// Construct from a value.
-    @nogc this(T)(T x) pure nothrow
+    @nogc this(T)(T x) pure nothrow if (!is(T : BigInt))
     {
         opAssign!T(x);
+    }
+
+    static if (bits == 128)
+    {
+        this(T)(T n) if (is(T : BigInt))
+        {
+            auto a = n >> 64;
+            auto b = -((BigInt(ulong.max) * a) + a - n);
+
+            hi = cast(hi_t) a;
+            lo = cast(low_t) b;
+        }
     }
 
     // Private functions used by the `literal` template.
@@ -3162,7 +3223,7 @@ struct wideIntImpl(bool signed, int bits)
 
         T opCast(T)() const pure nothrow if (is(T : BigInt))
         {
-            return (T(hi_t.max) * T(hi)) + lo + hi;
+            return (T(hi_t.max) * hi) + lo + hi;
         }
     }
 
