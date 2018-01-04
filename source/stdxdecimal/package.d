@@ -1412,23 +1412,23 @@ public:
     }
 
     /// ditto
-    void toDecimalString(Writer)(auto ref Writer w) const if (isOutputRange!(Writer, char))
+    void toDecimalString(Writer)(ref Writer w) const if (isOutputRange!(Writer, char))
     {
         import std.math : pow;
         import std.range : repeat;
 
         if (sign == 1)
-            w.put('-');
+            put(w, '-');
 
         if (isInf)
         {
-            w.put("Infinity");
+            put(w, "Infinity");
             return;
         }
 
         if (isNan)
         {
-            w.put("NaN");
+            put(w, "NaN");
             return;
         }
 
@@ -1455,36 +1455,36 @@ public:
         {
             if (temp.length - decimalPlace == 0)
             {
-                w.put("0.");
-                w.put(temp);
+                put(w, "0.");
+                put(w, temp);
                 return;
             }
 
             if ((cast(long) temp.length) - decimalPlace > 0)
             {
-                w.put(temp[0 .. $ - decimalPlace]);
-                w.put('.');
-                w.put(temp[$ - decimalPlace .. $]);
+                put(w, temp[0 .. $ - decimalPlace]);
+                put(w, '.');
+                put(w, temp[$ - decimalPlace .. $]);
                 return;
             }
 
             if ((cast(long) temp.length) - decimalPlace < 0)
             {
-                w.put("0.");
-                w.put('0'.repeat(decimalPlace - temp.length));
-                w.put(temp);
+                put(w, "0.");
+                put(w, '0'.repeat(decimalPlace - temp.length));
+                put(w, temp);
                 return;
             }
         }
 
         if (decimalPlace < 0)
         {
-            w.put(temp);
-            w.put('0'.repeat(exponent));
+            put(w, temp);
+            put(w, '0'.repeat(exponent));
             return;
         }
 
-        w.put(temp);
+        put(w, temp);
     }
 }
 
