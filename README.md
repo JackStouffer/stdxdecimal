@@ -70,7 +70,7 @@ reduce | ❌
 Run on a 15", 2015 Macbook Pro, (rounded to the nearest ms; test values purposely avoid rounding, which is the slowest part by far)
 
 Test | `BigInt` | `Decimal` (P = 9) | `Decimal` (P = 64) | Python `Decimal` | Python `Decimal` (64 Digits)
------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+------------ | ------------- | ------------- | ------------- | ------------- | ------------- |
 Addition (n = 5M) | 594 ms | 3,383 ms | 6,414 ms | 799 ms | 741 ms
 Subtraction (n = 5M) | 494 ms | 3,092 ms | 6,028 ms | 800 ms | 830 ms
 Multiplication (n = 5M) | 156 ms | 448 ms | 1,797 ms | 695 ms | 1541 ms
