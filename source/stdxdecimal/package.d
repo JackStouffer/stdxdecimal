@@ -1317,15 +1317,21 @@ public:
     }
 
     /**
-     * For `bool`, follows the normal `cast(bool)` rules for floats in D.
-     * Numbers `<= -1` returns `true`, numbers between `-1` and `1` return
-     * false, numbers `>= 1` return `true`.
+     * Throws:
+     *     A `ConvException` if `isIntegral!T` and the decimal is NaN or Infinite.
      *
-     * For floating point types, returns a floating point type as close to the
-     * decimal as possible.
+     *     A `ConvOverflowException` if `isIntegral!T` and the decimal's value
+     *     is outside of `T.min` and `T.max`.
+     * Returns:
+     *     For `bool`, follows the normal `cast(bool)` rules for floats in D.
+     *     Numbers `<= -1` returns `true`, numbers between `-1` and `1` return
+     *     false, numbers `>= 1` return `true`.
+     *
+     *     For floating point types, returns a floating point type as close to the
+     *     decimal as possible.
      */
     auto opCast(T)() const
-    if (is(T == bool) || isFloatingPoint!T)
+    if (is(T == bool) || isNumeric!T)
     {
         static if (is(T == bool))
         {
@@ -1339,6 +1345,33 @@ public:
                 return true;
 
             return false;
+        }
+        else static if (isIntegral!T)
+        {
+            import std.algorithm.comparison : max;
+            import std.conv : to, text, ConvException, ConvOverflowException;
+            import std.math : abs;
+
+            if (isNan || isInf)
+                throw new ConvException(text(
+                    "Can't cast ", toDecimalString(), " ", Decimal.stringof, " to ", T.stringof
+                ));
+            if (this > T.max || this < T.min)
+                throw new ConvOverflowException(text(
+                    "Can't cast ", toDecimalString(), " ", Decimal.stringof, " to ", T.stringof
+                ));
+
+            T res = to!(T)(coefficient);
+
+            if (exponent < 0)
+                res /= max(10 ^^ abs(exponent), 1);
+            if (exponent > 0)
+                res *= max(10 ^^ abs(exponent), 1);
+
+            if (sign)
+                res *= -1;
+
+            return res;
         }
         else
         {
@@ -2113,6 +2146,8 @@ unittest
 @system
 unittest
 {
+    import std.exception : assertThrown;
+    import std.conv : ConvException, ConvOverflowException;
     import std.math : approxEqual, isNaN;
 
     assert((cast(bool) decimal("0.0")) == false);
@@ -2135,6 +2170,21 @@ unittest
     assert(isNaN((cast(real) decimal("-NaN"))));
     assert((cast(real) decimal("Inf")) == real.infinity);
     assert((cast(real) decimal("-Inf")) == -real.infinity);
+
+    assert((cast(int) decimal("1")) == 1);
+    assert((cast(int) decimal("1.0")) == 1);
+    assert((cast(int) decimal("0.0")) == 0);
+    assert((cast(int) decimal("-0")) == 0);
+    assert((cast(int) decimal("-1")) == -1);
+    assert((cast(int) decimal("0.0001")) == 0);
+    assert((cast(int) decimal("10000.0001")) == 10000);
+    assert((cast(ulong) decimal("-0")) == 0);
+    assert((cast(ulong) decimal("0.0001")) == 0);
+    assert((cast(ulong) decimal("10000.0001")) == 10000);
+
+    assertThrown!(ConvOverflowException)((cast(ulong) decimal("-1")));
+    assertThrown!(ConvException)((cast(ulong) decimal("INF")));
+    assertThrown!(ConvException)((cast(ulong) decimal("NaN")));
 
     static struct CustomHook
     {
