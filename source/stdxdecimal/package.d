@@ -695,7 +695,8 @@ public:
      *     representation due to floating point inaccuracy. If possible, it's always
      *     better to use string construction.
      */
-    this(T)(const T num) pure if (isNumeric!T) // for some reason doesn't infer pure
+    this(T)(const T num) pure // for some reason doesn't infer pure
+    if (isNumeric!T)
     {
         // the behavior of conversion from built-in number types
         // isn't covered by the spec, so we can do whatever we
@@ -775,7 +776,8 @@ public:
      * Exceptional_Conditions:
      *     invalidOperation is flagged when `str` is not a valid string
      */
-    this(S)(S str) if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S && !isSomeString!S)
+    this(S)(S str)
+    if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S && !isSomeString!S)
     {
         import std.algorithm.comparison : among, equal;
         import std.algorithm.iteration : filter, map;
@@ -975,7 +977,7 @@ public:
      *     `divisionByZero` is flagged when dividing anything but zero by zero
      */
     auto opBinary(string op, T)(T rhs) const
-        if (op == "+" || op == "-" || op == "*" || op == "/")
+    if (op == "+" || op == "-" || op == "*" || op == "/")
     {
         auto lhs = dup();
         return lhs.opOpAssign!(op, T)(rhs);
@@ -983,7 +985,7 @@ public:
 
     /// ditto
     ref Decimal!(Hook) opOpAssign(string op, T)(const auto ref T rhs)
-        if (op == "+" || op == "-" || op == "*" || op == "/")
+    if (op == "+" || op == "-" || op == "*" || op == "/")
     {
         static if (isNumeric!T)
         {
@@ -1216,7 +1218,7 @@ public:
      *     Does not modify the decimal in place.
      */
     auto opUnary(string op)() const
-        if (op == "-" || op == "+")
+    if (op == "-" || op == "+")
     {
         auto res = dup();
 
@@ -1232,7 +1234,7 @@ public:
      * `++` and `--` respectively.
      */
     ref Decimal!(Hook) opUnary(string op)()
-        if (op == "++" || op == "--")
+    if (op == "++" || op == "--")
     {
         static immutable one = decimal(1);
         static if (op == "++")
@@ -1336,7 +1338,7 @@ public:
      * decimal as possible.
      */
     auto opCast(T)() const
-        if (is(T == bool) || isFloatingPoint!T)
+    if (is(T == bool) || isFloatingPoint!T)
     {
         static if (is(T == bool))
         {
