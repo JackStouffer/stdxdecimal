@@ -227,7 +227,6 @@ import std.format : FormatSpec;
 import std.range.primitives;
 import std.traits;
 import std.bigint;
-import std.conv;
 
 /**
  * A exact decimal type, accurate to `Hook.precision` digits. Designed to be a
@@ -313,7 +312,7 @@ package:
     enum hasUnderflowMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onUnderflow(d); });
 
     /*
-        rounds the coefficient via `Hook`s rounding mode.
+        rounds num via `Hook`s rounding mode.
 
         Rounded is always set if the coefficient is changed
 
@@ -461,7 +460,19 @@ package:
     {
         import std.algorithm.comparison : min;
         import std.math : abs;
-        import core.checkedint : mulu;
+
+        alias CoffType = typeof(coefficient);
+        enum UseIntermediate = (useBigInt || useU128) && useBigInt != rhs.useBigInt && useU128 != rhs.useU128;
+        static if (UseIntermediate)
+        {
+            import std.conv : to;
+            alias AlignType = BigInt;
+        }
+        else
+        {
+            import core.checkedint : mulu;
+            alias AlignType = Unqual!(typeof(coefficient));
+        }
 
         bool rhsSign;
 
@@ -538,12 +549,6 @@ package:
             return this;
         }
 
-        static if (hook.precision == rhs.hook.precision)
-            alias AlignType = Unqual!(typeof(coefficient));
-        else
-            alias AlignType = BigInt;
-
-        alias CoffType = typeof(coefficient);
         AlignType alignedCoefficient = cast(AlignType) coefficient;
         AlignType rhsAlignedCoefficient = cast(AlignType) rhs.coefficient;
 
@@ -592,34 +597,34 @@ package:
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
             {
-                static if (hook.precision == rhs.hook.precision)
-                    coefficient = alignedCoefficient + rhsAlignedCoefficient;
-                else
+                static if (UseIntermediate)
                     coefficient = to!(CoffType)(round(alignedCoefficient + rhsAlignedCoefficient));
+                else
+                    coefficient = alignedCoefficient + rhsAlignedCoefficient;
             }
             else
             {
-                static if (hook.precision == rhs.hook.precision)
-                    coefficient = rhsAlignedCoefficient + alignedCoefficient;
-                else
+                static if (UseIntermediate)
                     coefficient = to!(CoffType)(round(rhsAlignedCoefficient + alignedCoefficient));
+                else
+                    coefficient = rhsAlignedCoefficient + alignedCoefficient;
             }
         }
         else
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
             {
-                static if (hook.precision == rhs.hook.precision)
-                    coefficient = alignedCoefficient - rhsAlignedCoefficient;
-                else
+                static if (UseIntermediate)
                     coefficient = to!(CoffType)(round(alignedCoefficient - rhsAlignedCoefficient));
+                else
+                    coefficient = alignedCoefficient - rhsAlignedCoefficient;
             }
             else
             {
-                static if (hook.precision == rhs.hook.precision)
-                    coefficient = rhsAlignedCoefficient - alignedCoefficient;
-                else
+                static if (UseIntermediate)
                     coefficient = to!(CoffType)(round(rhsAlignedCoefficient - alignedCoefficient));
+                else
+                    coefficient = rhsAlignedCoefficient - alignedCoefficient;
             }
         }
 
@@ -982,8 +987,6 @@ public:
     {
         static if (isNumeric!T)
         {
-            // TODO: What happens when rhs is something like ulong.max - 1
-            // shouldn't round rhs before doing operation, change Hook
             auto temp = decimal(rhs);
             return mixin("this " ~ op ~ "= temp");
         }
@@ -3453,7 +3456,7 @@ struct wideIntImpl(bool signed, int bits)
        return lo == y.lo && y.hi == hi;
     }
 
-    @nogc int opCmp(T)(T y) pure const if (!isSelf!T)
+    int opCmp(T)(T y) const if (!isSelf!T)
     {
         return opCmp(self(y));
     }
