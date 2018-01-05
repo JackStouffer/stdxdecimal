@@ -698,54 +698,7 @@ public:
     this(T)(const T num) pure // for some reason doesn't infer pure
     if (isNumeric!T)
     {
-        // the behavior of conversion from built-in number types
-        // isn't covered by the spec, so we can do whatever we
-        // want here
-
-        static if (isIntegral!T)
-        {
-            import std.math : abs;
-
-            coefficient = abs(num);
-            sign = num >= 0 ? 0 : 1;
-        }
-        else
-        {
-            import std.math : abs, isInfinity, isNaN;
-
-            Unqual!T val = num;
-
-            if (isInfinity(val))
-            {
-                isInf = true;
-                sign = val < 0 ? 0 : 1;
-                return;
-            }
-
-            if (isNaN(val))
-            {
-                isNan = true;
-                sign = val == T.nan ? 0 : 1;
-                return;
-            }
-
-            sign = val >= 0 ? 0 : 1;
-            val = abs(val);
-
-            // while the number still has a fractional part, multiply by 10,
-            // counting each time until no fractional part
-            Unqual!T fraction = val - (cast(long) val);
-            while (fraction > 0)
-            {
-                --exponent;
-                val *= 10;
-                fraction = val - (cast(long) val);
-            }
-
-            coefficient = cast(size_t) val;
-        }
-
-        coefficient = round(coefficient);
+        opAssign(num);
     }
 
     /**
@@ -753,8 +706,6 @@ public:
      *
      * If the string does not represent a number, then the result is `NaN`
      * and `invalidOperation` is `true`.
-     *
-     * Implements spec `to-number`.
      *
      * Params:
      *     str = The string to convert from
@@ -950,6 +901,70 @@ public:
         // see Issue 17330
         import std.utf : byCodeUnit;
         this(str.byCodeUnit);
+    }
+
+    /**
+     * Changes the value of this decimal to the value of a built-in number 
+     *
+     * Params:
+     *     num = the number to convert to exact decimal
+     * 
+     * Note:
+     *     Using `float` types for construction is less accurate than using a string
+     *     representation due to floating point inaccuracy. If possible, it's always
+     *     better to use string construction.
+     */
+    auto opAssign(T)(T num) if (isNumeric!T)
+    {
+        // the behavior of conversion from built-in number types
+        // isn't covered by the spec, so we can do whatever we
+        // want here
+
+        static if (isIntegral!T)
+        {
+            import std.math : abs;
+
+            coefficient = abs(num);
+            sign = num >= 0 ? 0 : 1;
+        }
+        else
+        {
+            import std.math : abs, isInfinity, isIdentical, isNaN;
+
+            Unqual!T val = num;
+
+            if (isInfinity(val))
+            {
+                isInf = true;
+                sign = val > 0 ? 0 : 1;
+                return this;
+            }
+
+            if (isNaN(val))
+            {
+                isNan = true;
+                sign = isIdentical(val, T.nan) ? 0 : 1;
+                return this;
+            }
+
+            sign = val >= 0 ? 0 : 1;
+            val = abs(val);
+
+            // while the number still has a fractional part, multiply by 10,
+            // counting each time until no fractional part
+            Unqual!T fraction = val - (cast(long) val);
+            while (fraction > 0)
+            {
+                --exponent;
+                val *= 10;
+                fraction = val - (cast(long) val);
+            }
+
+            coefficient = cast(size_t) val;
+        }
+
+        coefficient = round(coefficient);
+        return this;
     }
 
     /**
@@ -1261,7 +1276,7 @@ public:
      *     `0`, `-1` if the result is less than `0`, and `1` if the result is
      *     greater than zero
      */
-    int opCmp(T)(const auto ref T d) const
+    int opCmp(T)(T d) const
     {
         static if (!isNumeric!T)
         {
@@ -1707,13 +1722,26 @@ unittest
         assert(d.coefficient == el.coefficient);
         assert(d.sign == el.sign);
         assert(d.exponent == el.exponent);
+
+        Decimal!() d2;
+        d2 = el.val;
+        assert(d2.coefficient == el.coefficient);
+        assert(d2.sign == el.sign);
+        assert(d2.exponent == el.exponent);
     }
 
     foreach (el; specialTestValues)
     {
         auto d = Decimal!()(el.val);
+        assert(d.sign == el.sign);
         assert(d.isNan == el.isNan);
         assert(d.isInf == el.isInf);
+
+        Decimal!() d2;
+        d2 = el.val;
+        assert(d2.sign == el.sign);
+        assert(d2.isNan == el.isNan);
+        assert(d2.isInf == el.isInf);
     }
 }
 
