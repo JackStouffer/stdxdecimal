@@ -269,37 +269,7 @@ package:
     bool sign;
     bool isNan;
     bool isInf;
-
-    version (DigitalMars)
-    {
-        enum useBigInt = Hook.precision > 9;
-        // disabled for DMD as it's 10x slower than BigInts in some
-        // operations
-        enum useU128 = false;
-    }
-    else
-    {
-        // 19 because 9_999_999_999_999_999_999 ^^ 2
-        // can still fit in a uint128
-        enum useBigInt = Hook.precision > 19;
-        // 9 because 999_999_999 ^^ 2
-        // can still fit in a ulong
-        enum useU128 = Hook.precision > 9 && Hook.precision <= 19;
-    }
-
-    // actual value of decimal given as (–1)^^sign × coefficient × 10^^exponent
-    static if (useBigInt)
-    {
-        BigInt coefficient;
-    }
-    else static if (useU128)
-    {
-        uint128 coefficient;
-    }
-    else
-    {
-        ulong coefficient;
-    }
+    BigInt coefficient;
     int exponent;
 
     enum hasClampedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onClamped(d); });
@@ -332,11 +302,6 @@ package:
             return num;
 
         T lastDigit;
-        static if (is(T == uint128))
-        {
-            uint128 q = void;
-            uint128 x = uint128.literal!"10";
-        }
 
         // TODO: as soon as inexact == true, we can quit the
         // loops and do a single division if ulong or just a
@@ -345,18 +310,10 @@ package:
         {
             while (digits > hook.precision)
             {
-                static if (is(T == uint128))
-                {
-                    Internals!(128).unsignedDivide(num, x, q, lastDigit);
-                    num = q;
-                }
-                else
-                {
-                    if (!inexact)
-                        lastDigit = num % 10;
+                if (!inexact)
+                    lastDigit = num % 10;
 
-                    num /= 10;
-                }
+                num /= 10;
 
                 --digits;
                 ++exponent;
@@ -369,18 +326,10 @@ package:
         {
             while (digits > hook.precision)
             {
-                static if (is(T == uint128))
-                {
-                    Internals!(128).unsignedDivide(num, x, q, lastDigit);
-                    num = q;
-                }
-                else
-                {
-                    if (!inexact)
-                        lastDigit = num % 10;
+                if (!inexact)
+                    lastDigit = num % 10;
 
-                    num /= 10;
-                }
+                num /= 10;
 
                 --digits;
                 ++exponent;
@@ -397,18 +346,10 @@ package:
         {
             while (digits > hook.precision + 1)
             {
-                static if (is(T == uint128))
-                {
-                    Internals!(128).unsignedDivide(num, x, q, lastDigit);
-                    num = q;
-                }
-                else
-                {
-                    if (!inexact)
-                        lastDigit = num % 10;
+                if (!inexact)
+                    lastDigit = num % 10;
 
-                    num /= 10;
-                }
+                num /= 10;
 
                 --digits;
                 ++exponent;
@@ -417,16 +358,8 @@ package:
                     inexact = true;
             }
 
-            static if (is(T == uint128))
-            {
-                Internals!(128).unsignedDivide(num, x, q, lastDigit);
-                num = q;
-            }
-            else
-            {
-                lastDigit = num % 10;
-                num /= 10;
-            }
+            lastDigit = num % 10;
+            num /= 10;
 
             if (lastDigit != 0)
                 inexact = true;
@@ -538,8 +471,8 @@ package:
             return this;
         }
 
-        BigInt alignedCoefficient = cast(BigInt) coefficient;
-        BigInt rhsAlignedCoefficient = cast(BigInt) rhs.coefficient;
+        BigInt alignedCoefficient = coefficient;
+        BigInt rhsAlignedCoefficient = rhs.coefficient;
 
         if (exponent != rhs.exponent)
         {
@@ -562,17 +495,17 @@ package:
         // is subtracted from the larger; otherwise they are added.
         if (sign == rhsSign)
         {
-            coefficient = to!(CoffType)(round(alignedCoefficient + rhsAlignedCoefficient));
+            coefficient = alignedCoefficient + rhsAlignedCoefficient;
         }
         else
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
             {
-                coefficient = to!(CoffType)(round(alignedCoefficient - rhsAlignedCoefficient));
+                coefficient = alignedCoefficient - rhsAlignedCoefficient;
             }
             else
             {
-                coefficient = to!(CoffType)(round(rhsAlignedCoefficient - alignedCoefficient));
+                coefficient = rhsAlignedCoefficient - alignedCoefficient;
             }
         }
 
@@ -1035,18 +968,6 @@ public:
         }
         else static if (op == "/")
         {
-            enum UseIntermediate = (useBigInt || useU128) && useBigInt != rhs.useBigInt && useU128 != rhs.useU128;
-
-            static if (UseIntermediate)
-            {
-                import std.conv : to;
-                alias DivType = BigInt;
-            }
-            else
-            {
-                alias DivType = Unqual!(typeof(coefficient));
-            }
-
             if (isNan || rhs.isNan)
             {
                 // the sign of the first nan is simply propagated
@@ -1121,17 +1042,9 @@ public:
             }
 
             int adjust;
-            DivType res;
-            static if (UseIntermediate)
-            {
-                auto dividend = to!(DivType)(coefficient);
-                auto divisor = to!(DivType)(rhs.coefficient);
-            }
-            else
-            {
-                DivType dividend = coefficient;
-                DivType divisor = rhs.coefficient;
-            }
+            BigInt res;
+            BigInt dividend = coefficient;
+            BigInt divisor = rhs.coefficient;
 
             if (dividend !=0)
             {
@@ -1168,11 +1081,7 @@ public:
                 }
             }
 
-            static if (UseIntermediate)
-                coefficient = to!(typeof(coefficient))(round(res));
-            else
-                coefficient = round(res);
-            
+            coefficient = round(res);
             exponent = exponent - (rhs.exponent + adjust);
             return this;
         }
@@ -1282,20 +1191,9 @@ public:
         }
         else
         {
-            if (exponent == 0 && sign == 0)
+            static if (isIntegral!T)
             {
-                static if (isSigned!T)
-                {
-                    import std.conv : signed;
-                    auto s = signed(coefficient);
-                    if (s == d)
-                        return 0;
-                    if (s < d)
-                        return -1;
-                    if (s > d)
-                        return 1;
-                }
-                else
+                if (exponent == 0 && sign == 0)
                 {
                     if (coefficient == d)
                         return 0;
@@ -1375,6 +1273,8 @@ public:
         }
         else
         {
+            import std.conv : to;
+
             if (isInf)
             {
                 if (sign == 0)
@@ -1388,25 +1288,13 @@ public:
                 return -T.nan;
             }
 
-            static if (useBigInt)
-            {
-                import std.conv : to;
-                // this really needs to be reworked, the problem really
-                // is that both BigInt and uint128 both cast to ints but
-                // not to floats, and casting to ints cuts off more than
-                // half of the number, this method however gets pretty close
-                // to the equivalent floating point representation of the
-                // decimal
-                T res = coefficient.toDecimalString.to!T;
-            }
-            else static if (useU128)
-            {
-                T res = cast(real) coefficient;
-            }
-            else
-            {
-                T res = coefficient;
-            }
+            // this really needs to be reworked, the problem really
+            // is that both BigInt and uint128 both cast to ints but
+            // not to floats, and casting to ints cuts off more than
+            // half of the number, this method however gets pretty close
+            // to the equivalent floating point representation of the
+            // decimal
+            T res = coefficient.toDecimalString.to!T;
             
             res *= 10.0 ^^ exponent;
             if (sign == 1)
@@ -1510,23 +1398,7 @@ public:
             return;
         }
 
-        static if (useBigInt)
-        {
-            import std.bigint : toDecimalString;
-            auto temp = coefficient.toDecimalString;
-        }
-        else static if (useU128)
-        {
-            // TODO: Add writer overload to uint128
-            import std.conv : to;
-            auto temp = to!string(coefficient);
-        }
-        else
-        {
-            import std.conv : toChars;
-            auto temp = coefficient.toChars;
-        }
-
+        auto temp = coefficient.toDecimalString;
         auto decimalPlace = exponent * -1;
 
         if (decimalPlace > 0)
@@ -1567,7 +1439,7 @@ public:
 }
 
 // string construction
-@safe pure nothrow
+@system
 unittest
 {
     static struct Test
@@ -1659,7 +1531,7 @@ unittest
 }
 
 // int construction
-@safe pure nothrow @nogc
+@system
 unittest
 {
     static struct Test
@@ -1685,7 +1557,7 @@ unittest
 }
 
 // float construction
-@safe pure nothrow
+@system
 unittest
 {
     static struct Test
@@ -1882,7 +1754,7 @@ unittest
 }
 
 // multiplication
-@system pure nothrow
+@system
 unittest
 {
     static struct Test
@@ -1938,7 +1810,7 @@ unittest
 }
 
 // division
-@system pure
+@system
 unittest
 {
     import std.exception : assertThrown;
@@ -2202,7 +2074,7 @@ unittest
 }
 
 // to string
-@system pure nothrow
+@system
 unittest
 {
     auto t = Decimal!()();
@@ -2449,7 +2321,8 @@ if ((isForwardRange!R &&
 }
 
 ///
-@safe pure unittest
+@system
+unittest
 {
     auto d1 = decimal(5.5);
     assert(d1.toString == "5.5");
@@ -2780,7 +2653,7 @@ bool isNaN(D)(const D d) if (isInstanceOf!(Decimal, D))
 }
 
 ///
-@safe pure nothrow @nogc unittest
+@system unittest
 {
     assert( isNaN(decimal("NaN")));
     assert( isNaN(decimal("-NaN")));
@@ -2795,7 +2668,7 @@ bool isInfinity(D)(const D d) if (isInstanceOf!(Decimal, D))
 }
 
 ///
-@safe pure nothrow @nogc unittest
+@system unittest
 {
     assert( isInfinity(decimal("Inf")));
     assert( isInfinity(decimal("-Inf")));

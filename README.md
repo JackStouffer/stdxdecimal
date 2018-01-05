@@ -69,13 +69,13 @@ reduce | ❌
 
 Run on a 15", 2015 Macbook Pro, (rounded to the nearest ms; test values purposely avoid rounding, which is the slowest part by far)
 
-Test | `BigInt` | `Decimal` (P = 9) | `Decimal` (P = 19) | `Decimal` (P = 64) | Python `Decimal` | Python `Decimal` (64 Digits)
+Test | `BigInt` | `Decimal` (P = 9) | `Decimal` (P = 64) | Python `Decimal` | Python `Decimal` (64 Digits)
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-Addition (n = 5M) | 594 ms | 105 ms | 152 ms | 2,358 ms | 799 ms | 741 ms
-Subtraction (n = 5M) | 494 ms | 103 ms | 149 ms | 2,247 ms | 800 ms | 830 ms
-Multiplication (n = 5M) | 156 ms | 16 ms | 1,689 ms | 999 ms | 695 ms | 1541 ms
-Division (n = 1M) | 207 ms | 25 ms | 532 ms | 11,116 ms | 215 ms | 416 ms
-Sorting 1M Uniformly Random Numbers | 592 ms | 386 ms | 502 ms | 5,170 ms | 1,536 ms | 1,228 ms
+Addition (n = 5M) | 594 ms | 3,383 ms | 6,414 ms | 799 ms | 741 ms
+Subtraction (n = 5M) | 494 ms | 3,092 ms | 6,028 ms | 800 ms | 830 ms
+Multiplication (n = 5M) | 156 ms | 448 ms | 1,797 ms | 695 ms | 1541 ms
+Division (n = 1M) | 207 ms | 5,261 ms | 18,283 ms | 215 ms | 416 ms
+Sorting 1M Uniformly Random Numbers | 592 ms | 5,074 ms| 6,700 ms | 1,536 ms | 1,228 ms
 
 ### Run It Yourself
 
