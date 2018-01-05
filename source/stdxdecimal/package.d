@@ -1043,7 +1043,16 @@ public:
                 return this;
             }
 
-            coefficient = coefficient * rhs.coefficient;
+            static if (is(typeof(coefficient) == typeof(rhs.coefficient)))
+            {
+                coefficient = coefficient * rhs.coefficient;
+            }
+            else
+            {
+                import std.conv : to;
+                coefficient = coefficient * to!(typeof(coefficient))(rhs.coefficient);
+            }
+            
             exponent = exponent + rhs.exponent;
 
             coefficient = round(coefficient);
@@ -1051,6 +1060,18 @@ public:
         }
         else static if (op == "/")
         {
+            enum UseIntermediate = (useBigInt || useU128) && useBigInt != rhs.useBigInt && useU128 != rhs.useU128;
+
+            static if (UseIntermediate)
+            {
+                import std.conv : to;
+                alias DivType = BigInt;
+            }
+            else
+            {
+                alias DivType = Unqual!(typeof(coefficient));
+            }
+
             if (isNan || rhs.isNan)
             {
                 // the sign of the first nan is simply propagated
@@ -1125,10 +1146,17 @@ public:
             }
 
             int adjust;
-            // TODO: what happens if they have different precisions
-            Unqual!(typeof(coefficient)) res;
-            Unqual!(typeof(coefficient)) dividend = coefficient;
-            Unqual!(typeof(rhs.coefficient)) divisor = rhs.coefficient;
+            DivType res;
+            static if (UseIntermediate)
+            {
+                auto dividend = to!(DivType)(coefficient);
+                auto divisor = to!(DivType)(rhs.coefficient);
+            }
+            else
+            {
+                DivType dividend = coefficient;
+                DivType divisor = rhs.coefficient;
+            }
 
             if (dividend !=0)
             {
@@ -1165,9 +1193,12 @@ public:
                 }
             }
 
-            coefficient = res;
+            static if (UseIntermediate)
+                coefficient = to!(typeof(coefficient))(round(res));
+            else
+                coefficient = round(res);
+            
             exponent = exponent - (rhs.exponent + adjust);
-            coefficient = round(coefficient);
             return this;
         }
         else
@@ -1260,12 +1291,6 @@ public:
                 return sign ? -1 : 1;
             if (coefficient == d.coefficient && coefficient == 0)
                 return 0;
-
-            static if ((useBigInt || useU128) && (d.useBigInt || useU128 == d.useU128))
-            {
-                if (exponent >= d.exponent)
-                    return coefficient.opCmp(d.coefficient);
-            }
 
             auto lhs = dup();
             lhs.addImpl!("-", false)(d);
@@ -2337,6 +2362,12 @@ unittest
     auto d5 = d1 - d4;
     auto d6 = d4 - d1;
     auto d7 = d1 - d3;
+    auto d8 = d1 * d4;
+    auto d9 = d1 * d3;
+    auto d10 = d4 * d1;
+    auto d11 = d1 / d4;
+    auto d12 = d4 / d1;
+    auto d13 = d1 / d3;
 
     assert(d1.opCmp(d2) == 1);
     assert(d1.opCmp(d3) == 1);
@@ -2344,6 +2375,12 @@ unittest
     assert(d5 == decimal!(HighPrecision)("9999999880000000000.0000"));
     assert(d6 == decimal!(CustomHook)("-9999999880000000000.0000"));
     assert(d7 == decimal!(HighPrecision)("9999999999999990000.00"));
+    assert(d8 == decimal!(HighPrecision)("1200000000000000000000000000000.0000"));
+    assert(d9 == decimal!(HighPrecision)("100000000000000000000000.00"));
+    assert(d10 == decimal!(CustomHook)("1200000000000000000000000000000"));
+    assert(d11 == decimal!(HighPrecision)("83333333.33333333333333333333333333333333333333333333333333333333"));
+    assert(d12 == decimal!(CustomHook)("0.000000012"));
+    assert(d13 == decimal!(HighPrecision)("1000000000000000"));
 }
 
 /**
