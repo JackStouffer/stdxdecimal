@@ -460,20 +460,9 @@ package:
     {
         import std.algorithm.comparison : min;
         import std.math : abs;
+        import std.conv : to;
 
-        alias CoffType = typeof(coefficient);
-        enum UseIntermediate = (useBigInt || useU128) && useBigInt != rhs.useBigInt && useU128 != rhs.useU128;
-        static if (UseIntermediate)
-        {
-            import std.conv : to;
-            alias AlignType = BigInt;
-        }
-        else
-        {
-            import core.checkedint : mulu;
-            alias AlignType = Unqual!(typeof(coefficient));
-        }
-
+        alias CoffType = Unqual!(typeof(coefficient));
         bool rhsSign;
 
         static if (op == "-")
@@ -549,86 +538,43 @@ package:
             return this;
         }
 
-        AlignType alignedCoefficient = cast(AlignType) coefficient;
-        AlignType rhsAlignedCoefficient = cast(AlignType) rhs.coefficient;
+        BigInt alignedCoefficient = cast(BigInt) coefficient;
+        BigInt rhsAlignedCoefficient = cast(BigInt) rhs.coefficient;
 
         if (exponent != rhs.exponent)
         {
             long diff;
-            static if (!useBigInt && !useU128) bool overflow;
 
             if (exponent > rhs.exponent)
             {
                 diff = abs(exponent - rhs.exponent);
-
-                static if (is(AlignType : ulong))
-                {
-                    alignedCoefficient = mulu(alignedCoefficient, 10 ^^ diff, overflow);
-                    // the Overflow condition is only raised if exponents are incorrect,
-                    // so this is actually the condition "Insufficient Storage"
-                    if (overflow)
-                        assert(0, "Arithmetic operation failed due to coefficient overflow");
-                }
-                else
-                {
-                    alignedCoefficient *= 10 ^^ diff;
-                }
+                alignedCoefficient *= BigInt(10) ^^ diff;
             }
             else
             {
                 diff = abs(rhs.exponent - exponent);
-
-                static if (is(AlignType : ulong))
-                {
-                    rhsAlignedCoefficient = mulu(rhsAlignedCoefficient, 10 ^^ diff, overflow);
-                    if (overflow)
-                        assert(0, "Arithmetic operation failed due to coefficient overflow");
-                }
-                else
-                {
-                    rhsAlignedCoefficient *= 10 ^^ diff;
-                }
+                rhsAlignedCoefficient *= BigInt(10) ^^ diff;
             }
         }
 
+        exponent = min(exponent, rhs.exponent);
         // If the signs of the operands differ then the smaller aligned coefficient
         // is subtracted from the larger; otherwise they are added.
         if (sign == rhsSign)
         {
-            if (alignedCoefficient >= rhsAlignedCoefficient)
-            {
-                static if (UseIntermediate)
-                    coefficient = to!(CoffType)(round(alignedCoefficient + rhsAlignedCoefficient));
-                else
-                    coefficient = alignedCoefficient + rhsAlignedCoefficient;
-            }
-            else
-            {
-                static if (UseIntermediate)
-                    coefficient = to!(CoffType)(round(rhsAlignedCoefficient + alignedCoefficient));
-                else
-                    coefficient = rhsAlignedCoefficient + alignedCoefficient;
-            }
+            coefficient = to!(CoffType)(round(alignedCoefficient + rhsAlignedCoefficient));
         }
         else
         {
             if (alignedCoefficient >= rhsAlignedCoefficient)
             {
-                static if (UseIntermediate)
-                    coefficient = to!(CoffType)(round(alignedCoefficient - rhsAlignedCoefficient));
-                else
-                    coefficient = alignedCoefficient - rhsAlignedCoefficient;
+                coefficient = to!(CoffType)(round(alignedCoefficient - rhsAlignedCoefficient));
             }
             else
             {
-                static if (UseIntermediate)
-                    coefficient = to!(CoffType)(round(rhsAlignedCoefficient - alignedCoefficient));
-                else
-                    coefficient = rhsAlignedCoefficient - alignedCoefficient;
+                coefficient = to!(CoffType)(round(rhsAlignedCoefficient - alignedCoefficient));
             }
         }
-
-        exponent = min(exponent, rhs.exponent);
 
         if (coefficient != 0)
         {
@@ -922,10 +868,22 @@ public:
 
         static if (isIntegral!T)
         {
-            import std.math : abs;
+            static if (isSigned!T)
+            {
+                import std.math : abs;
 
-            coefficient = abs(num);
-            sign = num >= 0 ? 0 : 1;
+                // work around int.min bug where abs(int.min) == int.min
+                static if (T.sizeof <= int.sizeof)
+                    coefficient = abs(cast(long) num);
+                else
+                    coefficient = abs(num);
+                
+                sign = num >= 0 ? 0 : 1;
+            }
+            else
+            {
+                coefficient = num;
+            }
         }
         else
         {
@@ -1276,7 +1234,7 @@ public:
      *     `0`, `-1` if the result is less than `0`, and `1` if the result is
      *     greater than zero
      */
-    int opCmp(T)(T d) const
+    int opCmp(T)(T d) const if (isNumeric!T || isInstanceOf!(TemplateOf!(Decimal), T))
     {
         static if (!isNumeric!T)
         {
@@ -1326,12 +1284,26 @@ public:
         {
             if (exponent == 0 && sign == 0)
             {
-                if (coefficient == d)
-                    return 0;
-                if (coefficient < d)
-                    return -1;
-                if (coefficient > d)
-                    return 1;
+                static if (isSigned!T)
+                {
+                    import std.conv : signed;
+                    auto s = signed(coefficient);
+                    if (s == d)
+                        return 0;
+                    if (s < d)
+                        return -1;
+                    if (s > d)
+                        return 1;
+                }
+                else
+                {
+                    if (coefficient == d)
+                        return 0;
+                    if (coefficient < d)
+                        return -1;
+                    if (coefficient > d)
+                        return 1;
+                }
             }
 
             return this.opCmp(d.decimal);
@@ -1687,7 +1659,7 @@ unittest
     {
         double val;
         ubyte sign;
-        int coefficient;
+        long coefficient;
         long exponent;
     }
 
@@ -1707,6 +1679,7 @@ unittest
         Test(1234.5678, 0, 12_345_678, -4),
         Test(-1234.5678, 1, 12_345_678, -4),
         Test(-1234, 1, 1234, 0),
+        Test(int.min, 1, 214748365, 1),
     ];
 
     auto specialTestValues = [
@@ -1776,6 +1749,7 @@ unittest
         Test("5.75", "3.3", "9.05"),
         Test("1.23456789", "1.00000000", "2.23456789"),
         Test("10E5", "10E4", "1100000"),
+        Test("10E25", "10E4", "100000000000000000000000000"),
         Test("0.9998", "0.0000", "0.9998"),
         Test("1", "0.0001", "1.0001"),
         Test("1", "0.00", "1.00"),
@@ -2000,7 +1974,7 @@ unittest
 }
 
 // cmp and equals
-@system pure nothrow
+@system
 unittest
 {
     static struct Test
@@ -2062,7 +2036,7 @@ unittest
 }
 
 // unary
-@system pure nothrow
+@system
 unittest
 {
     auto testPlusValues = [
