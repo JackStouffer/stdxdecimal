@@ -78,34 +78,10 @@
  *
  *     `Hook.precision` must be `<= uint.max - 1` and `> 1`.
  *
- * Notes_On_Speed:
- *     Increasing the number of possible significant digits can result in orders
- *     of magnitude slower behavior, as described below. Only ask for as many digits
- *     as you really need.
- *
- *     $(TABLE
- *         $(TR
- *             $(TD 9 and below (default))
- *             $(TD Baseline)
- *         )
- *         $(TR
- *             $(TD 10-19)
- *             $(TD 2x slower than baseline)
- *         )
- *         $(TR
- *             $(TD 20-1000)
- *             $(TD 20x slower than baseline)
- *         )
- *         $(TR
- *             $(TD 1000 and above)
- *             $(TD 200x slower than baseline)
- *         )
- *     )
- *
- *     Further, while it's possible to mix and match precisions in the various operations,
- *     in this module, it results in a notable slow-down relative to the operation's
- *     speed with two similar precisions. It's recommended that the user stick to one precision
- *     throughout the program to avoid these issues.
+ * Note_On_Speed:
+ *     The more digits of precision you define in hook, the slower many operations
+ *     will become. It's recommended that you use the least amount of precision
+ *     necessary for your code.
  *
  * Exceptional_Conditions:
  *     Certain operations will cause a `Decimal` to enter into an invalid state,
@@ -223,7 +199,6 @@
 module stdxdecimal;
 
 version(unittest) { import std.stdio; }
-import std.format : FormatSpec;
 import std.range.primitives;
 import std.traits;
 import std.bigint;
@@ -288,14 +263,11 @@ package:
 
         Inexact is set if the rounded digits were non-zero
      */
-    auto round(T)(T num)
+    auto round(T)(T num) pure
     {
-        static if (hook.precision < 20)
-        {
-            enum ulong max = 10UL ^^ hook.precision;
-            if (num < max)
-                return num;
-        }
+        enum BigInt max = BigInt(10) ^^ hook.precision;
+        if (num < max)
+            return num;
 
         auto digits = numberOfDigits(num);
         if (digits <= hook.precision)
@@ -304,8 +276,7 @@ package:
         T lastDigit;
 
         // TODO: as soon as inexact == true, we can quit the
-        // loops and do a single division if ulong or just a
-        // few divisions if bigint, cuts down on total divisions
+        // loops and do a single division
         static if (hook.roundingMode == Rounding.Down)
         {
             while (digits > hook.precision)
@@ -389,13 +360,12 @@ package:
         Separated into its own function for readability as well as
         allowing opCmp to skip the rounding step
      */
-    ref Decimal!(Hook) addImpl(string op, bool doRound, T)(const auto ref T rhs)
+    ref Decimal!(Hook) addImpl(string op, bool doRound, T)(T rhs)
     {
         import std.algorithm.comparison : min;
         import std.math : abs;
         import std.conv : to;
 
-        alias CoffType = Unqual!(typeof(coefficient));
         bool rhsSign;
 
         static if (op == "-")
@@ -574,7 +544,7 @@ public:
      *     representation due to floating point inaccuracy. If possible, it's always
      *     better to use string construction.
      */
-    this(T)(const T num) pure // for some reason doesn't infer pure
+    this(T)(T num) pure // for some reason doesn't infer pure
     if (isNumeric!T)
     {
         opAssign(num);
@@ -890,7 +860,7 @@ public:
     }
 
     /// ditto
-    ref Decimal!(Hook) opOpAssign(string op, T)(const auto ref T rhs)
+    ref Decimal!(Hook) opOpAssign(string op, T)(T rhs)
     if (op == "+" || op == "-" || op == "*" || op == "/")
     {
         static if (isNumeric!T)
@@ -2699,15 +2669,13 @@ private:
  */
 auto numberOfDigits(T)(T x)
 {
-    static if (isIntegral!T)
-    {
-        static if (is(Signed!T == T))
-        {
-            import std.math : abs;
-            x = abs(x);
-        }
+    if (x < 0)
+        x *= -1;
 
-        // manual ifs are two orders of magnitude faster than using log10
+    immutable len = x.ulongLength;
+
+    if (len == 1)
+    {
         if (x == 0UL) return 1;
         if (x < 10UL) return 1;
         if (x < 100UL) return 2;
@@ -2727,84 +2695,36 @@ auto numberOfDigits(T)(T x)
         if (x < 10_000_000_000_000_000UL) return 16;
         if (x < 100_000_000_000_000_000UL) return 17;
         if (x < 1_000_000_000_000_000_000UL) return 18;
-        return 19;
     }
-    else
+
+    uint digits = 19;
+    BigInt num = BigInt(10_000_000_000_000_000_000UL);
+
+    if (len == 3)
     {
-        import std.bigint : BigInt;
+        digits = 39;
+        enum BigInt lentwo = BigInt("100000000000000000000");
+        num *= lentwo;
+    }
+    else if (len == 4)
+    {
+        digits = 58;
+        enum BigInt lenthree = BigInt("1000000000000000000000000000000000000000");
+        num *= lenthree;
+    }
+    else if (len > 4)
+    {
+        digits = 78;
+        enum BigInt lenfour = BigInt("100000000000000000000000000000000000000000000000000000000000");
+        num *= lenfour;
+    }
 
-        if (x < 0)
-            x *= -1;
-
-        immutable len = x.ulongLength;
-
-        if (len == 1)
-        {
-            if (x == 0UL) return 1;
-            if (x < 10UL) return 1;
-            if (x < 100UL) return 2;
-            if (x < 1_000UL) return 3;
-            if (x < 10_000UL) return 4;
-            if (x < 100_000UL) return 5;
-            if (x < 1_000_000UL) return 6;
-            if (x < 10_000_000UL) return 7;
-            if (x < 100_000_000UL) return 8;
-            if (x < 1_000_000_000UL) return 9;
-            if (x < 10_000_000_000UL) return 10;
-            if (x < 100_000_000_000UL) return 11;
-            if (x < 1_000_000_000_000UL) return 12;
-            if (x < 10_000_000_000_000UL) return 13;
-            if (x < 100_000_000_000_000UL) return 14;
-            if (x < 1_000_000_000_000_000UL) return 15;
-            if (x < 10_000_000_000_000_000UL) return 16;
-            if (x < 100_000_000_000_000_000UL) return 17;
-            if (x < 1_000_000_000_000_000_000UL) return 18;
-        }
-
-        uint digits = 19;
-        Unqual!(T) num = 10_000_000_000_000_000_000UL;
-
-        if (len == 3)
-        {
-            digits = 39;
-            num *= 10_000_000_000_000_000_000UL;
-            num *= 10;
-        }
-        else if (len == 4)
-        {
-            digits = 58;
-            num *= 10_000_000_000_000_000_000UL;
-            num *= 10_000_000_000_000_000_000UL;
-            num *= 10UL;
-        }
-        else if (len > 4)
-        {
-            digits = 78;
-            num *= 10_000_000_000_000_000_000UL;
-            num *= 10_000_000_000_000_000_000UL;
-            num *= 10_000_000_000_000_000_000UL;
-            num *= 100UL;
-        }
-
-        for (;; num *= 10, digits++)
-        {
-            if (x < num)
-                return digits;
-        }
+    for (;; num *= 10, digits++)
+    {
+        if (x < num)
+            return digits;
     }
 }
-
-@safe @nogc pure nothrow unittest
-{
-    assert(numberOfDigits(0) == 1);
-    assert(numberOfDigits(1) == 1);
-    assert(numberOfDigits(1_000UL) == 4);
-    assert(numberOfDigits(-1_000L) == 4);
-    assert(numberOfDigits(1_000_000) == 7);
-    assert(numberOfDigits(-1_000_000) == 7);
-    assert(numberOfDigits(123_456) == 6);
-}
-
 
 @system pure
 unittest
