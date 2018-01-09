@@ -38,7 +38,7 @@ void main()
 
     writeln("Baseline:", "\t", result1);
     writeln("BigInt:", "\t\t", result2);
-    writeln("Decimal(9):", "\t", result3);
+    writeln("Decimal(16):", "\t", result3);
     writeln("Decimal(64):", "\t", result4, "\n");
 
     writeln("Subtraction (sum of 5M runs)");
@@ -49,7 +49,7 @@ void main()
 
     writeln("Baseline:", "\t", result1);
     writeln("BigInt:", "\t\t", result2);
-    writeln("Decimal(9):", "\t", result3);
+    writeln("Decimal(16):", "\t", result3);
     writeln("Decimal(64):", "\t", result4, "\n");
 
     writeln("Multiplication (sum of 1M runs)");
@@ -60,7 +60,7 @@ void main()
 
     writeln("Baseline:", "\t", result1);
     writeln("BigInt:", "\t\t", result2);
-    writeln("Decimal(9):", "\t", result3);
+    writeln("Decimal(16):", "\t", result3);
     writeln("Decimal(64):", "\t", result4, "\n");
 
     writeln("Division (sum of 1M runs)");
@@ -71,7 +71,7 @@ void main()
 
     writeln("Baseline:", "\t", result1);
     writeln("BigInt:", "\t\t", result2);
-    writeln("Decimal(9):", "\t", result3);
+    writeln("Decimal(16):", "\t", result3);
     writeln("Decimal(64):", "\t", result4, "\n");
 
     real[] arr1;
@@ -104,6 +104,6 @@ void main()
 
     writeln("Baseline:", "\t", result1);
     writeln("BigInt:", "\t\t", result2);
-    writeln("Decimal(9):", "\t", result3);
+    writeln("Decimal(16):", "\t", result3);
     writeln("Decimal(64):", "\t", result4);
 }

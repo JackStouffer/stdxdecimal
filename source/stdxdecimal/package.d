@@ -1554,7 +1554,7 @@ unittest
         Test(1234.5678, 0, 12_345_678, -4),
         Test(-1234.5678, 1, 12_345_678, -4),
         Test(-1234, 1, 1234, 0),
-        Test(int.min, 1, 214748365, 1),
+        Test(int.min, 1, 2147483648, 0),
     ];
 
     auto specialTestValues = [
@@ -1749,8 +1749,9 @@ unittest
         Test("-1.20", "-2", "2.40"),
         Test("123.45", "1e7", "1234500000"),
         Test("12345", "10E-3", "123.450"),
-        Test("1.23456789", "1.00000000", "1.23456789", false, true),
-        Test("123456789", "10", "1234567890", false, true),
+        Test("1.23456789", "1.00000000", "1.234567890000000", false, true),
+        Test("123456789", "10", "1234567890", false, false),
+        Test("123456789", "100000000000000", "12345678900000000000000", false, true),
         Test("Inf", "-Inf", "-Infinity"),
         Test("-1000", "Inf", "-Infinity"),
         Test("Inf", "1000", "Infinity"),
@@ -1808,8 +1809,8 @@ unittest
         Test("0.0", "1", "0.0"),
         Test("0.0", "-1", "-0.0"),
         Test("-0.0", "-1", "0.0"),
-        Test("1", "3", "0.333333333", false, false, true, true),
-        Test("2", "3", "0.666666667", false, false, true, true),
+        Test("1", "3", "0.3333333333333333", false, false, true, true),
+        Test("2", "3", "0.6666666666666667", false, false, true, true),
         Test("0", "0", "NaN", true, false),
         Test("1000", "0", "Infinity", true, true),
         Test("-1000", "0", "-Infinity", true, true),
@@ -2362,17 +2363,14 @@ enum Rounding
  * Will halt program on division by zero, invalid operations,
  * overflows, and underflows.
  *
- * Has 9 significant digits, rounds half up
+ * Has 16 significant digits, rounds half up
  */
 struct Abort
 {
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
-    /**
-     * A precision of 9 allows all possible the results of +,-,*, and /
-     * to fit into a `ulong` with no issues.
-     */
-    enum uint precision = 9;
+    ///
+    enum uint precision = 16;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -2402,8 +2400,8 @@ struct Abort
 /**
  * Same as abort, but offers 64 significant digits
  *
- * Note: As noted in the module overview, using 64 significant digits is much
- * slower than `9` or `19`.
+ * Note: As noted in the module overview, using 64 significant digits is
+ * slower than `16` or `19`.
  */
 struct HighPrecision
 {
@@ -2441,14 +2439,14 @@ struct HighPrecision
  * Will throw exceptions on division by zero, invalid operations,
  * overflows, and underflows
  *
- * Has 9 significant digits, rounds half up
+ * Has 16 significant digits, rounds half up
  */
 struct Throw
 {
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
-    enum uint precision = 9;
+    enum uint precision = 16;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -2478,14 +2476,14 @@ struct Throw
 /**
  * Does nothing on invalid operations except the proper flags
  *
- * Has 9 significant digits, rounds half up
+ * Has 16 significant digits, rounds half up
  */
 struct NoOp
 {
     ///
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
-    enum uint precision = 9;
+    enum uint precision = 16;
 }
 
 /**
