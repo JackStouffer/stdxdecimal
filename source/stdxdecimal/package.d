@@ -214,28 +214,44 @@ struct Decimal(Hook = Abort)
     import std.experimental.allocator.common : stateSize;
 
     static assert(
-        hasMember!(Hook, "precision") && is(typeof(Hook.precision) : uint),
-        "The Hook must have a defined precision that's convertible to uint"
+        (hasMember!(Hook, "precision") && is(typeof(Hook.precision) : uint))
+        || !hasMember!(Hook, "precision"),
+        "Hook.precision must be implicitly convertible to uint"
     );
     static assert(
-        isEnum!(Hook.precision),
+        (hasMember!(Hook, "precision") && isEnum!(Hook.precision))
+        || !hasMember!(Hook, "precision"),
         "Hook.precision must be readable at compile-time"
     );
     static assert(
-        hasMember!(Hook, "roundingMode") && is(typeof(Hook.roundingMode) == Rounding),
-        "The Hook must have a defined Rounding"
-    );
-    static assert(
-        isEnum!(Hook.roundingMode),
-        "Hook.roundingMode must be readable at compile-time"
-    );
-    static assert(
-        hook.precision > 1,
+        (hasMember!(Hook, "precision") && hook.precision > 1)
+        || !hasMember!(Hook, "precision"),
         "Hook.precision is too small (must be at least 2)"
     );
     static assert(
-        hook.precision <= uint.max - 1,
-        "Hook.precision is too large (must be <= uint.max - 1)"
+        (hasMember!(Hook, "precision") && hook.precision < uint.max)
+        || !hasMember!(Hook, "precision"),
+        "Hook.precision must be < uint.max"
+    );
+    static assert(
+        (hasMember!(Hook, "roundingMode") && is(typeof(Hook.roundingMode) == Rounding))
+        || !hasMember!(Hook, "precision"),
+        "Hook.roundingMode must be of type Rounding"
+    );
+    static assert(
+        (hasMember!(Hook, "precision") && isEnum!(Hook.roundingMode))
+        || !hasMember!(Hook, "precision"),
+        "Hook.roundingMode must be readable at compile-time"
+    );
+    static assert(
+        (hasMember!(Hook, "maxExponent") && isEnum!(Hook.maxExponent))
+        || !hasMember!(Hook, "maxExponent"),
+        "Hook.maxExponent must be readable at compile-time"
+    );
+    static assert(
+        (hasMember!(Hook, "minExponent") && isEnum!(Hook.minExponent))
+        || !hasMember!(Hook, "minExponent"),
+        "Hook.minExponent must be readable at compile-time"
     );
 
 package:
@@ -246,6 +262,32 @@ package:
     bool isInf;
     BigInt coefficient;
     int exponent;
+
+    // choose between default or defined parameters
+    static if (hasMember!(Hook, "precision"))
+        enum uint precision = Hook.precision;
+    else
+        enum uint precision = 16;
+
+    static if (hasMember!(Hook, "roundingMode"))
+        enum Rounding roundingMode = Hook.roundingMode;
+    else
+        enum Rounding roundingMode = Rounding.HalfUp;
+
+    static if (hasMember!(Hook, "maxExponent") && isEnum!(Hook.maxExponent))
+        enum int maxExponent = Hook.maxExponent;
+    else
+        enum int maxExponent = 999;
+
+    static if (hasMember!(Hook, "minExponent") && isEnum!(Hook.minExponent))
+        enum int minExponent = Hook.minExponent;
+    else
+        enum int minExponent = -999;
+
+    static assert(
+        minExponent < maxExponent,
+        "minExponent must be less than maxExponent"
+    );
 
     enum hasClampedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onClamped(d); });
     enum hasRoundedMethod = __traits(compiles, { auto d = Decimal!(Hook)(0); hook.onRounded(d); });
@@ -268,22 +310,22 @@ package:
         version (D_InlineAsm_X86) {}
         else
         {
-            enum BigInt max = BigInt(10) ^^ hook.precision;
+            enum BigInt max = BigInt(10) ^^ precision;
             if (num < max)
                 return num;
         }
 
         auto digits = numberOfDigits(num);
-        if (digits <= hook.precision)
+        if (digits <= precision)
             return num;
 
         Unqual!(T) lastDigit;
 
         // TODO: as soon as inexact == true, we can quit the
         // loops and do a single division
-        static if (hook.roundingMode == Rounding.Down)
+        static if (roundingMode == Rounding.Down)
         {
-            while (digits > hook.precision)
+            while (digits > precision)
             {
                 if (!inexact)
                     lastDigit = num % 10;
@@ -297,9 +339,9 @@ package:
                     inexact = true;
             }
         }
-        else static if (hook.roundingMode == Rounding.Up)
+        else static if (roundingMode == Rounding.Up)
         {
-            while (digits > hook.precision)
+            while (digits > precision)
             {
                 if (!inexact)
                     lastDigit = num % 10;
@@ -317,9 +359,9 @@ package:
             if (inexact)
                 ++num;
         }
-        else static if (hook.roundingMode == Rounding.HalfUp)
+        else static if (roundingMode == Rounding.HalfUp)
         {
-            while (digits > hook.precision + 1)
+            while (digits > precision + 1)
             {
                 if (!inexact)
                     lastDigit = num % 10;
@@ -499,7 +541,7 @@ package:
             else
                 sign = 0;
 
-            static if (hook.roundingMode == Rounding.Floor)
+            static if (roundingMode == Rounding.Floor)
                 if (sign != rhsSign)
                     sign = 1;
         }
@@ -1042,7 +1084,7 @@ public:
                         ++res;
                     }
 
-                    if ((dividend == 0 && adjust >= 0) || numberOfDigits(res) == hook.precision + 1)
+                    if ((dividend == 0 && adjust >= 0) || numberOfDigits(res) == precision + 1)
                     {
                         break;
                     }
@@ -1335,6 +1377,14 @@ public:
         return res;
     }
 
+    static Decimal!(Hook) max()() @property
+    {
+        Decimal!(Hook) res;
+        res.coefficient = 1; // 9 * 1111
+        res.exponent = maxExponent;
+        return res;
+    }
+
     ///
     alias toString = toDecimalString;
 
@@ -1346,7 +1396,7 @@ public:
 
         auto app = appender!string();
         if (exponent > 10 || exponent < -10)
-            app.reserve(abs(exponent) + hook.precision);
+            app.reserve(abs(exponent) + precision);
         toDecimalString(app);
         return app.data;
     }
@@ -2105,6 +2155,37 @@ unittest
 
     auto t15 = Decimal!()("-NAN");
     assert(t15.toString() == "-NaN");
+}
+
+// test hook setting enums
+@safe pure
+unittest
+{
+    static assert(Decimal!(void).precision == 16);
+    static assert(Decimal!(void).roundingMode == Rounding.HalfUp);
+    static assert(Decimal!(void).maxExponent == 999);
+    static assert(Decimal!(void).minExponent == -999);
+
+    static struct A
+    {
+        enum maxExponent = 10;
+    }
+    static assert(Decimal!(A).precision == 16);
+    static assert(Decimal!(A).roundingMode == Rounding.HalfUp);
+    static assert(Decimal!(A).maxExponent == 10);
+    static assert(Decimal!(A).minExponent == -999);
+
+    static struct B
+    {
+        enum precision = 10;
+        enum Rounding roundingMode = Rounding.Down;
+        enum maxExponent = 10;
+        enum minExponent = -10;
+    }
+    static assert(Decimal!(B).precision == 10);
+    static assert(Decimal!(B).roundingMode == Rounding.Down);
+    static assert(Decimal!(B).maxExponent == 10);
+    static assert(Decimal!(B).minExponent == -10);
 }
 
 // test rounding
