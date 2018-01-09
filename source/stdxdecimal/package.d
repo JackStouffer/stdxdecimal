@@ -1377,11 +1377,29 @@ public:
         return res;
     }
 
+    /**
+     * Returns: The maximum value that this decimal type can represent.
+     * Equal to `(1 * 10 ^^ (maxExponent + 1)) - 1`
+     */
     static Decimal!(Hook) max()() @property
     {
+        import std.range : repeat;
         Decimal!(Hook) res;
-        res.coefficient = 1; // 9 * 1111
+        res.coefficient = BigInt('9'.repeat(precision));
         res.exponent = maxExponent;
+        return res;
+    }
+
+    /**
+     * Returns: The minimum value that this decimal type can represent.
+     * Equal to `-1 * 10 ^^ minExponent`
+     */
+    static Decimal!(Hook) min()() @property
+    {
+        Decimal!(Hook) res;
+        res.coefficient = 1;
+        res.exponent = minExponent;
+        res.sign = 1;
         return res;
     }
 
@@ -1648,14 +1666,20 @@ unittest
 }
 
 // static ctors
-@safe pure nothrow
+@system pure
 unittest
 {
-    // TODO add max and min
-    auto d1 = Decimal!().nan;
+    alias DType = Decimal!();
+
+    auto d1 = DType.nan;
     assert(d1.isNan == true);
-    auto d2 = Decimal!().infinity;
+    auto d2 = DType.infinity;
     assert(d2.isInf == true);
+
+    auto d3 = DType.max;
+    assert(d3 == decimal("9999999999999999E999"));
+    auto d4 = DType.min;
+    assert(d4 == decimal("-1E-999"));
 }
 
 // addition and subtraction
