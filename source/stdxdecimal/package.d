@@ -273,7 +273,7 @@ package:
         if (digits <= hook.precision)
             return num;
 
-        T lastDigit;
+        Unqual!(T) lastDigit;
 
         // TODO: as soon as inexact == true, we can quit the
         // loops and do a single division
