@@ -56,7 +56,7 @@ Modulo | ❌
 DivMod | ❌
 opOpAssign `+`,`-`,`*`,`/`,`^^` | ❌
 Unary `+`,`-`,`++`,`--` | ✓
-opCast `int`,`real`,`bool` | ❌
+opCast `int`,`real`,`bool` | ✓
 abs | ✓
 ln | ❌
 log10 | ❌
@@ -75,7 +75,6 @@ Addition (n = 5M) | 594 ms | 3,383 ms | 6,414 ms | 799 ms | 741 ms
 Subtraction (n = 5M) | 494 ms | 3,092 ms | 6,028 ms | 800 ms | 830 ms
 Multiplication (n = 5M) | 156 ms | 448 ms | 1,797 ms | 695 ms | 1541 ms
 Division (n = 1M) | 207 ms | 5,261 ms | 18,283 ms | 215 ms | 416 ms
-Sorting 1M Uniformly Random Numbers | 592 ms | 5,074 ms| 6,700 ms | 1,536 ms | 1,228 ms
 
 ### Run It Yourself
 
@@ -94,6 +93,4 @@ timeit.timeit("c = a * b", setup="from decimal import Decimal; a = Decimal(10000
 timeit.timeit("c = a * b", setup="from decimal import Decimal; a = Decimal('10000000000000000000000000000000000000000000000000000000000000.12'); b = Decimal('5000000000000000000000000000000000000000000000000000000000000000'); c = None", number=5000000)
 timeit.timeit("c = a / b", setup="from decimal import Decimal; a = Decimal(10000.12); b = Decimal(5000000); c = None", number=1000000)
 timeit.timeit("c = a / b", setup="from decimal import Decimal; a = Decimal('10000000000000000000000000000000000000000000000000000000000000.12'); b = Decimal('5000000000000000000000000000000000000000000000000000000000000000'); c = None", number=1000000)
-timeit.timeit("c = sorted(a)", setup="from decimal import Decimal;import random; a = [Decimal(random.randint(-10000000, 10000000) * random.random()) for x in range(1000000)]", number=1)
-timeit.timeit("c = sorted(a)", setup="from decimal import Decimal;import random; a = [Decimal(random.randint(-100000000000000000000000000000000000000000000000000, 100000000000000000000000000000000000000000000000000) * random.random()) for x in range(1000000)]", number=1)
 ```

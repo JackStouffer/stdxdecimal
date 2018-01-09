@@ -265,9 +265,13 @@ package:
      */
     auto round(T)(T num) pure
     {
-        enum BigInt max = BigInt(10) ^^ hook.precision;
-        if (num < max)
-            return num;
+        version (D_InlineAsm_X86) {}
+        else
+        {
+            enum BigInt max = BigInt(10) ^^ hook.precision;
+            if (num < max)
+                return num;
+        }
 
         auto digits = numberOfDigits(num);
         if (digits <= hook.precision)
@@ -2701,20 +2705,47 @@ auto numberOfDigits(T)(T x)
     if (len == 3)
     {
         digits = 39;
-        enum BigInt lentwo = BigInt("100000000000000000000");
-        num *= lentwo;
+        version(D_InlineAsm_X86)
+        {
+            num *= 10000000000000000000UL;
+            num *= 10UL;
+        }
+        else
+        {
+            enum BigInt lentwo = BigInt("100000000000000000000");
+            num *= lentwo;
+        }
     }
     else if (len == 4)
     {
         digits = 58;
-        enum BigInt lenthree = BigInt("1000000000000000000000000000000000000000");
-        num *= lenthree;
+        version(D_InlineAsm_X86)
+        {
+            num *= 10000000000000000000UL;
+            num *= 10000000000000000000UL;
+            num *= 10UL;
+        }
+        else
+        {
+            enum BigInt lenthree = BigInt("1000000000000000000000000000000000000000");
+            num *= lenthree;
+        }
     }
     else if (len > 4)
     {
         digits = 78;
-        enum BigInt lenfour = BigInt("100000000000000000000000000000000000000000000000000000000000");
-        num *= lenfour;
+        version(D_InlineAsm_X86)
+        {
+            num *= 10000000000000000000UL;
+            num *= 10000000000000000000UL;
+            num *= 10000000000000000000UL;
+            num *= 100UL;
+        }
+        else
+        {
+            enum BigInt lenfour = BigInt("100000000000000000000000000000000000000000000000000000000000");
+            num *= lenfour;
+        }
     }
 
     for (;; num *= 10, digits++)
