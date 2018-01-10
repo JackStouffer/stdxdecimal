@@ -202,6 +202,7 @@ version(unittest) { import std.stdio; }
 import std.range.primitives;
 import std.traits;
 import std.bigint;
+import std.bitmanip;
 
 /**
  * A exact decimal type, accurate to `Hook.precision` digits. Designed to be a
@@ -254,12 +255,22 @@ struct Decimal(Hook = Abort)
         "Hook.minExponent must be readable at compile-time"
     );
 
+    mixin(bitfields!(
+        bool, "sign", 1,
+        bool, "isNan", 1,
+        bool, "isInf", 1,
+        bool, "clamped", 1,
+        bool, "divisionByZero", 1,
+        bool, "inexact", 1,
+        bool, "invalidOperation", 1,
+        bool, "overflow", 1,
+        bool, "rounded", 1,
+        bool, "subnormal", 1,
+        bool, "underflow", 1,
+        uint, "", 5
+    ));
+
 package:
-    // "1 indicates that the number is negative or is the negative zero
-    // and 0 indicates that the number is zero or positive."
-    bool sign;
-    bool isNan;
-    bool isInf;
     BigInt coefficient;
     int exponent;
 
@@ -561,23 +572,6 @@ public:
         Hook hook;
     else
         alias hook = Hook;
-
-    /// Public flags
-    bool clamped;
-    /// ditto
-    bool divisionByZero;
-    /// ditto
-    bool inexact;
-    /// ditto
-    bool invalidOperation;
-    /// ditto
-    bool overflow;
-    /// ditto
-    bool rounded;
-    /// ditto
-    bool subnormal;
-    /// ditto
-    bool underflow;
 
     /**
      * Constructs an exact decimal type from a built in number
