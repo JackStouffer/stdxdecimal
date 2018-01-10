@@ -202,7 +202,6 @@ version(unittest) { import std.stdio; }
 import std.range.primitives;
 import std.traits;
 import std.bigint;
-import std.bitmanip;
 
 /**
  * A exact decimal type, accurate to `Hook.precision` digits. Designed to be a
@@ -255,20 +254,19 @@ struct Decimal(Hook = Abort)
         "Hook.minExponent must be readable at compile-time"
     );
 
-    mixin(bitfields!(
-        bool, "sign", 1,
-        bool, "isNan", 1,
-        bool, "isInf", 1,
-        bool, "clamped", 1,
-        bool, "divisionByZero", 1,
-        bool, "inexact", 1,
-        bool, "invalidOperation", 1,
-        bool, "overflow", 1,
-        bool, "rounded", 1,
-        bool, "subnormal", 1,
-        bool, "underflow", 1,
-        uint, "", 5
-    ));
+    // result of bitfields separated out so the properties can be public
+    private ushort signAndFlags;
+    @property void sign(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 1U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))1U);}
+    @property void isNan(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 2U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))2U);}
+    @property void isInf(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 4U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))4U);}
+    @property void clamped(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 8U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))8U);}
+    @property void divisionByZero(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 16U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))16U);}
+    @property void inexact(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 32U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))32U);}
+    @property void invalidOperation(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 64U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))64U);}
+    @property void overflow(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 128U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))128U);}
+    @property void rounded(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 256U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))256U);}
+    @property void subnormal(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 512U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))512U);}
+    @property void underflow(bool v) @safe pure nothrow @nogc { if (v) signAndFlags |= 1024U;else signAndFlags &= cast(typeof(signAndFlags))(-1-cast(typeof(signAndFlags))1024U);}
 
 package:
     BigInt coefficient;
@@ -599,7 +597,7 @@ public:
      * Params:
      *     str = The string to convert from
      *
-     * String_Spec:
+     * Specification:
      * -------
      * sign           ::=  + | -
      * digit          ::=  0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
@@ -608,13 +606,13 @@ public:
      * decimal-part   ::=  digits . [digits] | [.] digits
      * exponent-part  ::=  indicator [sign] digits
      * infinity       ::=  Infinity | Inf
-     * nan            ::=  NaN [digits]
+     * nan            ::=  NaN
      * numeric-value  ::=  decimal-part [exponent-part] | infinity
      * numeric-string ::=  [sign] numeric-value | [sign] nan
      * -------
      *
      * Exceptional_Conditions:
-     *     invalidOperation is flagged when `str` is not a valid string
+     *     `invalidOperation` is flagged when `str` is not a valid string
      */
     this(S)(S str)
     if (isForwardRange!S && isSomeChar!(ElementEncodingType!S) && !isInfinite!S && !isSomeString!S)
@@ -793,7 +791,8 @@ public:
     }
 
     /**
-     * Changes the value of this decimal to the value of a built-in number 
+     * Changes the value of this decimal to the value of a built-in number.
+     * Also resets all exceptional condition flags.
      *
      * Params:
      *     num = the number to convert to exact decimal
@@ -805,10 +804,11 @@ public:
      */
     auto opAssign(T)(T num) if (isNumeric!T)
     {
+        resetFlags();
+
         // the behavior of conversion from built-in number types
         // isn't covered by the spec, so we can do whatever we
         // want here
-
         static if (isIntegral!T)
         {
             static if (isSigned!T)
@@ -873,11 +873,11 @@ public:
      * a built in number.
      * 
      * The result has the hook of the left hand side. On non-assignment
-     * operations invalid operations do not effect the left hand side of
-     * the operation.
+     * operations, invalid operations do not effect the left hand side of
+     * the operation, only the result.
      *
      * When the right hand side is a built-in numeric type, the default
-     * hook `Abort` is used for its decimal representation.
+     * hook `Abort` is used for its decimal representation in the operation.
      *
      * Params:
      *     rhs = the right-hand side of the operation
@@ -1396,6 +1396,29 @@ public:
         res.sign = 1;
         return res;
     }
+
+    /// Exceptional condition flags
+    bool sign() @safe pure nothrow @nogc const @property { return (signAndFlags & 1U) != 0; }
+    /// ditto
+    bool isNan() @safe pure nothrow @nogc const @property { return (signAndFlags & 2U) != 0;}
+    /// ditto
+    bool isInf() @safe pure nothrow @nogc const @property { return (signAndFlags & 4U) != 0;}
+    /// ditto
+    bool clamped() @safe pure nothrow @nogc const @property { return (signAndFlags & 8U) != 0;}
+    /// ditto
+    bool divisionByZero() @safe pure nothrow @nogc const @property { return (signAndFlags & 16U) != 0;}
+    /// ditto
+    bool inexact() @safe pure nothrow @nogc const @property { return (signAndFlags & 32U) != 0;}
+    /// ditto
+    bool invalidOperation() @safe pure nothrow @nogc const @property { return (signAndFlags & 64U) != 0;}
+    /// ditto
+    bool overflow() @safe pure nothrow @nogc const @property { return (signAndFlags & 128U) != 0;}
+    /// ditto
+    bool rounded() @safe pure nothrow @nogc const @property { return (signAndFlags & 256U) != 0;}
+    /// ditto
+    bool subnormal() @safe pure nothrow @nogc const @property { return (signAndFlags & 512U) != 0;}
+    /// ditto
+    bool underflow() @safe pure nothrow @nogc const @property { return (signAndFlags & 1024U) != 0;}
 
     ///
     alias toString = toDecimalString;
@@ -2474,6 +2497,10 @@ struct Abort
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
     enum uint precision = 16;
+    ///
+    enum int maxExponent = 999;
+    ///
+    enum int minExponent = -999;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -2512,6 +2539,10 @@ struct HighPrecision
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
     enum uint precision = 64;
+    ///
+    enum int maxExponent = 999;
+    ///
+    enum int minExponent = -999;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -2550,6 +2581,10 @@ struct Throw
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
     enum uint precision = 16;
+    ///
+    enum int maxExponent = 999;
+    ///
+    enum int minExponent = -999;
 
     ///
     static void onDivisionByZero(T)(T d) if (isInstanceOf!(Decimal, T))
@@ -2587,6 +2622,10 @@ struct NoOp
     enum Rounding roundingMode = Rounding.HalfUp;
     ///
     enum uint precision = 16;
+    ///
+    enum int maxExponent = 999;
+    ///
+    enum int minExponent = -999;
 }
 
 /**
@@ -2718,7 +2757,7 @@ class Underflow : Exception
 }
 
 /// Returns: If this decimal represents a positive or negative NaN
-bool isNaN(D)(const D d) if (isInstanceOf!(Decimal, D))
+bool isNaN(D)(D d) if (isInstanceOf!(Decimal, D))
 {
     return d.isNan;
 }
@@ -2733,7 +2772,7 @@ bool isNaN(D)(const D d) if (isInstanceOf!(Decimal, D))
 }
 
 /// Returns: If this decimal represents positive or negative infinity
-bool isInfinity(D)(const D d) if (isInstanceOf!(Decimal, D))
+bool isInfinity(D)(D d) if (isInstanceOf!(Decimal, D))
 {
     return d.isInf;
 }
@@ -2748,7 +2787,7 @@ bool isInfinity(D)(const D d) if (isInstanceOf!(Decimal, D))
 }
 
 /// Returns: The given decimal with a positive sign
-auto abs(D)(const D d) if (isInstanceOf!(Decimal, D))
+auto abs(D)(D d) if (isInstanceOf!(Decimal, D))
 {
     if (d.sign == 1)
         return -d;
